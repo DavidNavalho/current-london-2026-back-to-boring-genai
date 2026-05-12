@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Questionnaire AI Demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7f9;
+      --panel: #ffffff;
+      --ink: #17202a;
+      --muted: #5d6b78;
+      --line: #d8dee6;
+      --accent: #0f766e;
+      --warn: #b45309;
+      --bad: #b91c1c;
+      --good: #166534;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    h1 {
+      font-size: 24px;
+      margin: 0;
+      letter-spacing: 0;
+    }
+    h2 {
+      font-size: 15px;
+      margin: 0 0 10px;
+      letter-spacing: 0;
+    }
+    .run-id {
+      color: var(--muted);
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 300px minmax(420px, 1fr) 380px;
+      gap: 14px;
+      align-items: start;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      min-width: 0;
+    }
+    .stack { display: grid; gap: 10px; }
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+    button {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      text-align: left;
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+    .action-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .link-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 36px;
+      width: 100%;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      color: var(--accent);
+      background: #fff;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .status-panel {
+      display: grid;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .status-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+    .status-line b {
+      color: var(--ink);
+      text-align: right;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 10px;
+      color: var(--muted);
+      background: #fbfcfd;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-pill.waiting { color: var(--warn); border-color: #f1c27d; background: #fff8ed; }
+    .status-pill.ready { color: var(--good); border-color: #9cd0ad; background: #effaf2; }
+    .status-pill.rejected { color: var(--bad); border-color: #e9a5a5; background: #fff1f1; }
+    .inspector-meta {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      overflow-wrap: anywhere;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .stage {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      min-height: 82px;
+      background: #fbfcfd;
+    }
+    .stage strong {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 8px;
+      color: var(--muted);
+    }
+    .stage span {
+      display: block;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .good { color: var(--good); }
+    .bad { color: var(--bad); }
+    .warn { color: var(--warn); }
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #26323f;
+    }
+    .detail {
+      display: grid;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .detail b { color: var(--ink); }
+    .boundary {
+      display: grid;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .boundary div {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 7px;
+    }
+    .boundary div:last-child { border-bottom: 0; }
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      .board { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Questionnaire AI Demo</h1>
+      <div class="run-id" id="runId">No run selected</div>
+    </header>
+    <div class="layout">
+      <section>
+        <h2>Scenario Controls</h2>
+        <div class="scenario-grid">
+          <button class="primary" data-scenario="happy-path">Happy Path</button>
+          <button data-scenario="prompt-injection">Prompt Injection</button>
+          <button data-scenario="restricted-evidence">Restricted Evidence</button>
+          <button data-scenario="hallucinated-evidence">Hallucinated Evidence</button>
+          <button data-scenario="malformed-draft">Malformed Draft</button>
+          <button data-scenario="unsupported-claim">Unsupported Claim</button>
+          <button data-scenario="export-shortcut">Export Shortcut</button>
+          <button id="attackButton">Direct AI Write</button>
+        </div>
+      </section>
+      <div class="stack">
+        <section>
+          <h2>Workflow Board</h2>
+          <div class="board" id="board"></div>
+        </section>
+        <section>
+          <h2>Draft and Evidence</h2>
+          <div class="detail" id="detail">Run a scenario to load draft and evidence state.</div>
+        </section>
+      </div>
+      <div class="stack">
+        <section>
+          <h2>Human Review</h2>
+          <div class="status-panel">
+            <div class="status-line"><span>Gate</span><b id="reviewStatus">No active run</b></div>
+            <div class="action-row">
+              <button id="approveButton" disabled>Approve Draft</button>
+              <button id="exportButton" disabled>Export Response</button>
+            </div>
+          </div>
+        </section>
+        <section>
+          <h2>Kafka Inspector</h2>
+          <a class="link-button" href="http://localhost:8080" target="_blank" rel="noreferrer">Open AKHQ</a>
+          <div class="inspector-meta">Cluster: questionnaire-demo · Schema Registry: http://localhost:8081</div>
+        </section>
+        <section>
+          <h2>Authority Boundary</h2>
+          <div class="boundary">
+            <div><span>svc-ai-drafter</span><b>draft write only</b></div>
+            <div><span>reviewed topic</span><b class="bad">denied</b></div>
+            <div><span>export-ready topic</span><b class="bad">denied</b></div>
+            <div><span>internal evidence</span><b class="bad">read denied</b></div>
+          </div>
+        </section>
+        <section>
+          <h2>Audit and Security Timeline</h2>
+          <pre id="audit">No audit events loaded.</pre>
+        </section>
+      </div>
+    </div>
+  </main>
+  <script>
+    const board = document.getElementById('board');
+    const detail = document.getElementById('detail');
+    const audit = document.getElementById('audit');
+    const runId = document.getElementById('runId');
+    const reviewStatus = document.getElementById('reviewStatus');
+    const approveButton = document.getElementById('approveButton');
+    const exportButton = document.getElementById('exportButton');
+    let currentRunId = null;
+    let currentQuestionId = null;
+    const stages = [
+      ['questionnaire.received.v1', 'Received'],
+      ['questionnaire.questions.v1', 'Prepared'],
+      ['evidence.ai_safe.v1', 'AI-safe evidence'],
+      ['answer.draft.proposed.v1', 'Draft'],
+      ['answer.draft.accepted.v1', 'Accepted'],
+      ['answer.draft.rejected.v1', 'Rejected'],
+      ['answer.reviewed.v1', 'Reviewed'],
+      ['questionnaire.response.ready.v1', 'Response-ready']
+    ];
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      }[char]));
+    }
+
+    function statusLabel(status) {
+      return {
+        not_started: 'No active run',
+        draft_proposed: 'Draft proposed',
+        human_review_required: 'Human review required',
+        reviewed_pending_export: 'Reviewed; export ready',
+        export_ready: 'Export complete',
+        rejected: 'Rejected by guard'
+      }[status] || status || 'No active run';
+    }
+
+    function statusClass(status) {
+      if (status === 'human_review_required' || status === 'reviewed_pending_export') return 'waiting';
+      if (status === 'export_ready') return 'ready';
+      if (status === 'rejected') return 'rejected';
+      return '';
+    }
+
+    function renderBoard(state) {
+      board.innerHTML = stages.map(([topic, label]) => {
+        const count = state.topics[topic]?.count || 0;
+        const cls = topic.includes('rejected') && count ? 'bad' : count ? 'good' : '';
+        return `<div class="stage"><strong>${label}</strong><span class="${cls}">${count}</span></div>`;
+      }).join('');
+    }
+
+    function renderDetail(state, result) {
+      const draft = state.draft || {};
+      const accepted = state.accepted || {};
+      const reviewed = state.reviewed || {};
+      const response = state.response_ready || {};
+      detail.innerHTML = `
+        <div><b>Status:</b> <span class="status-pill ${statusClass(state.workflow_status)}">${escapeHtml(statusLabel(state.workflow_status))}</span></div>
+        <div><b>Scenario:</b> ${escapeHtml(result.scenario_id || 'attack')}</div>
+        <div><b>Run:</b> ${escapeHtml(state.run_id)}</div>
+        <div><b>Draft:</b> ${escapeHtml(draft.answer_type || 'n/a')} ${draft.confidence !== undefined ? '(' + escapeHtml(draft.confidence) + ')' : ''}</div>
+        <div><b>Draft text:</b> ${escapeHtml(draft.draft_answer || 'n/a')}</div>
+        <div><b>Evidence:</b> ${escapeHtml((draft.evidence_ids || []).join(', ') || 'n/a')}</div>
+        <div><b>Guard:</b> ${accepted.requires_human_review ? 'accepted; review required' : (state.reason_codes || []).length ? 'rejected' : 'not complete'}</div>
+        <div><b>Reason codes:</b> ${escapeHtml((state.reason_codes || []).join(', ') || 'none')}</div>
+        <div><b>Review:</b> ${escapeHtml(reviewed.decision || 'not reviewed')}</div>
+        <div><b>Export:</b> ${escapeHtml(response.export_summary || 'not export-ready')}</div>
+      `;
+    }
+
+    function renderReviewControls(state, result) {
+      currentRunId = state.run_id || null;
+      currentQuestionId = result.question_id || state.accepted?.question_id || state.draft?.question_id || null;
+      reviewStatus.innerHTML = `<span class="status-pill ${statusClass(state.workflow_status)}">${escapeHtml(statusLabel(state.workflow_status))}</span>`;
+      approveButton.disabled = state.workflow_status !== 'human_review_required';
+      exportButton.disabled = state.workflow_status !== 'reviewed_pending_export';
+    }
+
+    async function loadState(id, result) {
+      const [stateResponse, auditResponse] = await Promise.all([
+        fetch(`/demo/state/${id}`),
+        fetch(`/demo/audit/${id}`)
+      ]);
+      const state = await stateResponse.json();
+      const auditPayload = await auditResponse.json();
+      runId.textContent = `Run: ${id}`;
+      renderBoard(state);
+      renderDetail(state, result);
+      renderReviewControls(state, result);
+      audit.textContent = auditPayload.timeline || 'No audit events loaded.';
+    }
+
+    async function runScenario(scenario) {
+      runId.textContent = `Running ${scenario}...`;
+      const path = scenario === 'happy-path' ? `/demo/run/${scenario}?until=review` : `/demo/run/${scenario}`;
+      const response = await fetch(path, { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) {
+        audit.textContent = result.detail || 'Scenario failed';
+        return;
+      }
+      await loadState(result.run_id, result);
+    }
+
+    async function approveDraft() {
+      if (!currentRunId || !currentQuestionId) return;
+      reviewStatus.textContent = 'Approving...';
+      const response = await fetch(`/demo/review/${currentRunId}/${currentQuestionId}`, { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) {
+        audit.textContent = result.detail || 'Review failed';
+        return;
+      }
+      await loadState(currentRunId, { scenario_id: 'happy-path', question_id: currentQuestionId });
+    }
+
+    async function exportResponse() {
+      if (!currentRunId) return;
+      reviewStatus.textContent = 'Exporting...';
+      const response = await fetch(`/demo/export/${currentRunId}`, { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) {
+        audit.textContent = result.detail || 'Export failed';
+        return;
+      }
+      await loadState(currentRunId, { scenario_id: 'happy-path', question_id: currentQuestionId });
+    }
+
+    async function runAttack() {
+      const id = `ui-direct-write-${Date.now()}`;
+      runId.textContent = 'Running direct write attack...';
+      const response = await fetch(`/demo/attack/ai-direct-write/${id}`, { method: 'POST' });
+      const result = await response.json();
+      await loadState(result.run_id, { scenario_id: 'direct-ai-write' });
+      audit.textContent = `Result: ${result.denied ? 'DENIED' : 'ALLOWED'}\nReason: ${result.reason}\n\n${audit.textContent}`;
+    }
+
+    document.querySelectorAll('[data-scenario]').forEach((button) => {
+      button.addEventListener('click', () => runScenario(button.dataset.scenario));
+    });
+    document.getElementById('attackButton').addEventListener('click', runAttack);
+    approveButton.addEventListener('click', approveDraft);
+    exportButton.addEventListener('click', exportResponse);
+    renderBoard({ topics: {} });
+    renderReviewControls({ topics: {}, workflow_status: 'not_started' }, {});
+  </script>
+</body>
+</html>

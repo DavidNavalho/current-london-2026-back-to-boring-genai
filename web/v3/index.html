@@ -1,0 +1,1632 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f1ea">
+  <title>Focused Kafka Proof Harness</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #141414;
+      --muted: #5f6268;
+      --paper: #f4f1ea;
+      --panel: #fffcf4;
+      --panel-strong: #fff7df;
+      --line: #202020;
+      --line-soft: #d6d0c2;
+      --line-muted: #8d8679;
+      --good: #0d6b45;
+      --good-bg: #d5f1df;
+      --warn: #a86600;
+      --warn-bg: #fff0c9;
+      --bad: #a51f1f;
+      --bad-bg: #ffe2df;
+      --accent: #155dfc;
+      --accent-bg: #dfe8ff;
+      --code: "Berkeley Mono", "SFMono-Regular", Consolas, monospace;
+      --sans: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(90deg, rgba(20, 20, 20, 0.035) 1px, transparent 1px),
+        linear-gradient(rgba(20, 20, 20, 0.035) 1px, transparent 1px),
+        var(--paper);
+      background-size: 28px 28px;
+      color: var(--ink);
+      font-family: var(--sans);
+      letter-spacing: 0;
+    }
+
+    button, select {
+      font: inherit;
+    }
+
+    button {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 6px;
+      min-height: 42px;
+      cursor: pointer;
+      box-shadow: 3px 3px 0 var(--line);
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      touch-action: manipulation;
+    }
+
+    button:focus-visible,
+    select:focus-visible,
+    a:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 var(--line);
+    }
+
+    button:active:not(:disabled) {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0 var(--line);
+    }
+
+    button:disabled {
+      color: #888;
+      border-color: #999;
+      box-shadow: none;
+      cursor: not-allowed;
+      background: #ece7dc;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 14px;
+      padding: 16px;
+    }
+
+    .skip-link {
+      position: fixed;
+      left: 16px;
+      top: 12px;
+      z-index: 40;
+      transform: translateY(-140%);
+      border: 2px solid var(--line);
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-weight: 900;
+    }
+
+    .skip-link:focus-visible {
+      transform: translateY(0);
+    }
+
+    .topbar,
+    .pipeline,
+    .main,
+    .footer {
+      width: min(1800px, 100%);
+      margin: 0 auto;
+    }
+
+    .topbar {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      box-shadow: 5px 5px 0 var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 3.2vw, 52px);
+      line-height: 0.95;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      text-wrap: balance;
+    }
+
+    .tagline {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 920px;
+    }
+
+    .top-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid var(--line);
+      background: var(--panel-strong);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: var(--warn);
+    }
+
+    .dot.ok { background: var(--good); }
+    .dot.bad { background: var(--bad); }
+
+    select {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 6px;
+      padding: 4px 8px;
+      color: var(--ink);
+    }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(136px, 1fr));
+      grid-template-rows: minmax(66px, auto) minmax(66px, auto);
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 98px;
+      border: 2px solid var(--line-muted);
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 10px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 8px;
+      box-shadow: none;
+    }
+
+    .stage::after {
+      content: "";
+      position: absolute;
+      right: -17px;
+      top: calc(50% - 10px);
+      z-index: 2;
+      font-family: var(--code);
+      font-weight: 900;
+      color: var(--line);
+      background: var(--paper);
+      padding: 0 2px;
+    }
+
+    .stage.lane-main:not(.stage-response_ready)::after {
+      content: "->";
+    }
+
+    .stage.branch-terminal::after {
+      content: "";
+    }
+
+    .stage.branch-source::after {
+      top: 24px;
+      transform: rotate(-24deg);
+    }
+
+    .stage.branch-source::before {
+      content: "->";
+      position: absolute;
+      right: -17px;
+      bottom: 24px;
+      z-index: 2;
+      font-family: var(--code);
+      font-weight: 900;
+      color: var(--line);
+      background: var(--paper);
+      padding: 0 2px;
+      transform: rotate(24deg);
+    }
+
+    .stage.guard-choice::after {
+      top: 30px;
+      transform: rotate(20deg);
+    }
+
+    .stage.guard-choice,
+    .stage.branch-terminal {
+      min-height: 66px;
+      padding: 7px 9px;
+      gap: 4px;
+      grid-template-rows: auto auto auto;
+    }
+
+    .stage.guard-choice .key,
+    .stage.branch-terminal .key {
+      font-size: 10px;
+    }
+
+    .stage.guard-choice .label,
+    .stage.branch-terminal .label {
+      font-size: 14px;
+    }
+
+    .stage.guard-choice .meta,
+    .stage.branch-terminal .meta {
+      font-size: 10px;
+    }
+
+    .stage.guard-choice button,
+    .stage.branch-terminal button {
+      min-height: 20px;
+      padding: 1px 5px;
+      font-size: 10px;
+    }
+
+    .stage.lane-main:not(.guard-choice) {
+      align-self: center;
+    }
+
+    .stage-received { grid-column: 1; grid-row: 1 / span 2; }
+    .stage-prepared { grid-column: 2; grid-row: 1 / span 2; }
+    .stage-ai_safe_evidence { grid-column: 3; grid-row: 1 / span 2; }
+    .stage-draft_proposed { grid-column: 4; grid-row: 1 / span 2; }
+    .stage-draft_accepted { grid-column: 5; grid-row: 1; }
+    .stage-reviewed { grid-column: 6; grid-row: 1 / span 2; }
+    .stage-response_ready { grid-column: 7; grid-row: 1 / span 2; }
+    .stage-draft_rejected { grid-column: 5; grid-row: 2; }
+
+    .stage.active {
+      background: var(--good-bg);
+      border-color: var(--line);
+      box-shadow: inset 0 0 0 2px var(--line), 4px 4px 0 var(--line);
+      outline: 3px solid rgba(13, 107, 69, 0.2);
+    }
+
+    .stage.waiting {
+      background: var(--warn-bg);
+      border-color: var(--warn);
+      box-shadow: inset 0 0 0 1px var(--warn);
+      outline: 4px solid rgba(168, 102, 0, 0.14);
+    }
+
+    .stage.attempting {
+      background: var(--accent-bg);
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 1px var(--accent);
+      outline: 4px solid rgba(21, 93, 252, 0.16);
+    }
+
+    .stage.checking {
+      background: var(--warn-bg);
+      border-color: var(--warn);
+      box-shadow: inset 0 0 0 1px var(--warn);
+      outline: 4px solid rgba(168, 102, 0, 0.18);
+    }
+
+    .stage.denied {
+      background:
+        repeating-linear-gradient(135deg, rgba(165, 31, 31, 0.14) 0 8px, transparent 8px 16px),
+        var(--bad-bg);
+      border-color: var(--bad);
+      box-shadow: inset 0 0 0 2px var(--bad);
+      outline: 4px solid rgba(165, 31, 31, 0.16);
+    }
+
+    .stage .key {
+      font-family: var(--code);
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .stage .label {
+      font-size: 16px;
+      font-weight: 900;
+      line-height: 1.1;
+    }
+
+    .stage .meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      align-items: center;
+      font-family: var(--code);
+      font-size: 11px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stage button {
+      min-height: 24px;
+      padding: 2px 6px;
+      border-width: 1px;
+      box-shadow: none;
+      font-size: 11px;
+      font-family: var(--code);
+    }
+
+    .stage.dormant {
+      opacity: 0.72;
+      background: #f2ece0;
+      border-style: dashed;
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: minmax(270px, 0.82fr) minmax(380px, 1.35fr) minmax(310px, 0.95fr);
+      gap: 14px;
+      min-height: 0;
+    }
+
+    .panel {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      border-radius: 8px;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .panel-head {
+      border-bottom: 2px solid var(--line);
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      background: var(--panel-strong);
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .panel-body {
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .action-primary {
+      min-height: 58px;
+      background: var(--accent-bg);
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .action-danger {
+      background: var(--bad-bg);
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .locked-note {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      background: var(--warn-bg);
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .authority {
+      margin-top: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .rule {
+      border: 1px solid var(--line-soft);
+      border-left: 5px solid var(--line);
+      padding: 8px;
+      background: #fffaf0;
+      border-radius: 6px;
+      display: grid;
+      gap: 5px;
+    }
+
+    .rule.hit {
+      border-color: var(--bad);
+      border-left-color: var(--bad);
+      background: var(--bad-bg);
+    }
+
+    .rule .topic {
+      font-family: var(--code);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .allow { color: var(--good); font-weight: 900; }
+    .deny { color: var(--bad); font-weight: 900; }
+
+    .question {
+      display: grid;
+      gap: 12px;
+    }
+
+    .question-text {
+      margin: 0;
+      font-size: clamp(22px, 2.2vw, 38px);
+      line-height: 1.08;
+      font-weight: 900;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      font-family: var(--code);
+    }
+
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .evidence-col {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fffaf0;
+      min-height: 160px;
+      padding: 10px;
+    }
+
+    .evidence-col.withheld {
+      background:
+        repeating-linear-gradient(45deg, rgba(165, 31, 31, 0.08) 0 8px, transparent 8px 16px),
+        #fff7f4;
+    }
+
+    .evidence-item {
+      border-top: 1px solid var(--line-soft);
+      padding: 8px 0;
+    }
+
+    .evidence-item:first-child { border-top: 0; }
+
+    .evidence-id {
+      font-family: var(--code);
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--accent);
+    }
+
+    .draft-box {
+      margin-top: 12px;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 12px;
+      display: grid;
+      gap: 9px;
+    }
+
+    .proof-box {
+      border: 2px solid var(--bad);
+      border-radius: 8px;
+      background: var(--bad-bg);
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .proof-box pre {
+      margin: 0;
+      max-height: 180px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      background: #fffdf8;
+      border-radius: 6px;
+      padding: 8px;
+      font-family: var(--code);
+      font-size: 11px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+
+    .draft-answer {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.45;
+    }
+
+    .timeline {
+      display: grid;
+      gap: 8px;
+      max-height: 650px;
+      overflow: auto;
+    }
+
+    .event-row {
+      border: 1px solid var(--line-soft);
+      border-left: 5px solid var(--accent);
+      border-radius: 6px;
+      padding: 8px;
+      background: #fffaf0;
+      display: grid;
+      gap: 4px;
+    }
+
+    .event-row.security {
+      border-left-color: var(--bad);
+      background: var(--bad-bg);
+      order: -1;
+    }
+
+    .event-row .event-kind {
+      font-family: var(--code);
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .event-row .event-main {
+      font-weight: 800;
+      line-height: 1.25;
+    }
+
+    .event-row .event-meta {
+      color: var(--muted);
+      font-family: var(--code);
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    .attack-banner {
+      display: none;
+      margin-bottom: 12px;
+      border: 3px solid var(--bad);
+      border-radius: 8px;
+      background: var(--bad-bg);
+      padding: 12px;
+      gap: 8px;
+    }
+
+    .attack-banner.show {
+      display: grid;
+    }
+
+    .attack-banner.checking {
+      border-color: var(--accent);
+      background: var(--accent-bg);
+    }
+
+    .stamp {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      width: max-content;
+      border: 3px solid var(--bad);
+      color: var(--bad);
+      padding: 4px 8px;
+      font-family: var(--code);
+      font-weight: 900;
+      transform: rotate(-2deg);
+      background: #fff;
+    }
+
+    .attack-banner.checking .stamp {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      display: inline-block;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 12px;
+      font-family: var(--code);
+    }
+
+    .drawer {
+      position: fixed;
+      inset: auto 16px 16px auto;
+      width: min(720px, calc(100vw - 32px));
+      max-height: min(720px, calc(100vh - 32px));
+      background: var(--panel);
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 6px 6px 0 var(--line);
+      display: none;
+      grid-template-rows: auto 1fr;
+      z-index: 20;
+      overscroll-behavior: contain;
+    }
+
+    .drawer.show { display: grid; }
+
+    .drawer pre {
+      margin: 0;
+      padding: 12px;
+      overflow: auto;
+      font-family: var(--code);
+      font-size: 12px;
+      line-height: 1.45;
+      background: #fffdf8;
+    }
+
+    .drawer .panel-head button {
+      min-height: 28px;
+      box-shadow: none;
+      padding: 2px 8px;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+
+    @media (max-width: 1160px) {
+      .topbar,
+      .main {
+        grid-template-columns: 1fr;
+      }
+
+      .top-controls {
+        justify-content: flex-start;
+      }
+
+      .main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .app { padding: 10px; }
+      .pipeline { grid-template-columns: repeat(7, 150px); }
+      .evidence-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      button,
+      .skip-link {
+        transition: none;
+      }
+
+      .spinner {
+        animation: none;
+        border-right-color: currentColor;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <h1>Focused Kafka Proof Harness</h1>
+        <div class="tagline">
+          Useful draft, typed event, human review, denied bypass, reconstructable trace.
+        </div>
+      </div>
+      <div class="top-controls" aria-label="Runtime controls">
+        <span class="pill" id="runPill" aria-live="polite">Run: none</span>
+        <span class="pill"><span class="dot" id="kafkaDot" aria-hidden="true"></span>Kafka</span>
+        <span class="pill"><span class="dot" id="schemaDot" aria-hidden="true"></span>Avro schemas</span>
+        <span class="pill"><span class="dot" id="codexDot" aria-hidden="true"></span>Codex</span>
+        <label class="pill" for="pacingSelect">Pacing
+          <select id="pacingSelect" aria-label="Pacing">
+            <option value="realtime">realtime</option>
+            <option value="demo" selected>demo</option>
+            <option value="slow">slow</option>
+          </select>
+        </label>
+        <a class="pill" href="http://localhost:8080" target="_blank" rel="noreferrer">Open AKHQ</a>
+      </div>
+    </header>
+
+    <nav class="pipeline" id="pipeline" aria-label="Kafka workflow pipeline"></nav>
+
+    <main class="main" id="main">
+      <section class="panel" aria-labelledby="actionsTitle">
+        <div class="panel-head">
+          <h2 class="panel-title" id="actionsTitle">Presenter controls</h2>
+          <span class="pill" id="statusPill" aria-live="polite">idle</span>
+        </div>
+        <div class="panel-body">
+          <div class="actions">
+            <button class="action-primary" id="runBtn">Run Useful Path</button>
+            <button id="approveBtn" disabled>Approve Draft</button>
+            <button id="exportBtn" disabled>Export Response</button>
+            <button class="action-danger" id="attackBtn">Test AI Direct Write</button>
+          </div>
+
+          <div class="locked-note" id="boundaryClaim">
+            The model drafts. The policy guard gates. The reviewer approves.
+          </div>
+
+          <div class="authority" id="authorityPanel">
+            <div class="empty">Loading authority boundary</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="questionTitle">
+        <div class="panel-head">
+          <h2 class="panel-title" id="questionTitle">Question, evidence, draft</h2>
+          <span class="pill" id="questionPill">Q-001</span>
+        </div>
+        <div class="panel-body">
+          <div class="attack-banner" id="attackBanner">
+            <span class="stamp" id="attackStamp">DENIED</span>
+            <strong id="attackTitle">svc-ai-drafter cannot write the target topic.</strong>
+            <span id="attackDetail"></span>
+          </div>
+
+          <div class="question" id="questionPanel">
+            <p class="question-text">Run the useful path to load the questionnaire question.</p>
+            <div class="chips">
+              <span class="chip">AI-safe evidence pending</span>
+              <span class="chip">Human review required</span>
+            </div>
+          </div>
+
+          <div class="evidence-grid" aria-label="Evidence split">
+            <section class="evidence-col" id="aiEvidence">
+              <strong>AI sees</strong>
+              <div class="empty">Evidence appears after the run starts.</div>
+            </section>
+            <section class="evidence-col withheld" id="withheldEvidence">
+              <strong>Withheld from AI</strong>
+              <div class="empty">Restricted evidence stays out of the prompt.</div>
+            </section>
+          </div>
+
+          <section class="draft-box" id="draftPanel" aria-label="Draft and outcome">
+            <strong>Workflow state</strong>
+            <p class="draft-answer empty">
+              No reviewed/export-ready event exists before human approval.
+            </p>
+          </section>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="timelineTitle">
+        <div class="panel-head">
+          <h2 class="panel-title" id="timelineTitle">Audit and security timeline</h2>
+          <button id="resetBtn" title="Clear the local dashboard view; Kafka history remains available">Reset View</button>
+        </div>
+        <div class="panel-body">
+          <div class="timeline" id="timeline" aria-live="polite">
+            <div class="event-row">
+              <div class="event-kind">ready</div>
+              <div class="event-main">Run the useful path or test the authority boundary.</div>
+              <div class="event-meta">SSE: /demo/stream/{run_id}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Topics and payloads are Avro-governed through Schema Registry.</span>
+      <span id="telemetry">draft - · guard - · review - · export -</span>
+    </footer>
+  </div>
+
+  <aside class="drawer" id="drawer" aria-label="Kafka inspector">
+    <div class="panel-head">
+      <h2 class="panel-title" id="drawerTitle">Inspector</h2>
+      <button id="drawerClose">Close</button>
+    </div>
+    <pre id="drawerBody"></pre>
+  </aside>
+
+  <script>
+    const STAGES = [
+      ['received', 'Questionnaire received', 'questionnaire.received.v1', 'svc-ingest'],
+      ['prepared', 'Question prepared', 'questionnaire.questions.v1', 'svc-preparer'],
+      ['ai_safe_evidence', 'AI-safe evidence', 'evidence.ai_safe.v1', 'svc-evidence-gateway'],
+      ['draft_proposed', 'Codex draft', 'answer.draft.proposed.v1', 'svc-ai-drafter'],
+      ['draft_accepted', 'Guard accepted', 'answer.draft.accepted.v1', 'svc-policy-guard'],
+      ['draft_rejected', 'Guard rejected', 'answer.draft.rejected.v1', 'svc-policy-guard'],
+      ['reviewed', 'Human reviewed', 'answer.reviewed.v1', 'svc-review-export'],
+      ['response_ready', 'Export ready', 'questionnaire.response.ready.v1', 'svc-review-export']
+    ];
+
+    const STAGE_LAYOUT = {
+      received: { lane: 'main', classes: '' },
+      prepared: { lane: 'main', classes: '' },
+      ai_safe_evidence: { lane: 'main', classes: '' },
+      draft_proposed: { lane: 'main', classes: 'branch-source', note: 'Codex draft branches to guard accepted or guard rejected.' },
+      draft_accepted: { lane: 'main', classes: 'guard-choice', note: 'Accepted drafts proceed to human review.' },
+      draft_rejected: { lane: 'branch', classes: 'branch-terminal', note: 'Guard rejected is terminal.' },
+      reviewed: { lane: 'main', classes: '' },
+      response_ready: { lane: 'main', classes: '' }
+    };
+
+    const TOPIC_BY_STAGE = Object.fromEntries(STAGES.map(([key, , topic]) => [key, topic]));
+    const $ = (id) => document.getElementById(id);
+
+    const state = {
+      runId: null,
+      viewToken: 0,
+      questionId: null,
+      stream: null,
+      lastAttackRule: null,
+      seenEventIds: new Set(),
+      authorityTest: false,
+      attackAttempted: false,
+      attackCheckingTarget: null,
+      attackResult: null,
+      stageCounts: Object.fromEntries(STAGES.map(([key]) => [key, 0]))
+    };
+
+    const dom = {
+      pipeline: $('pipeline'),
+      runPill: $('runPill'),
+      statusPill: $('statusPill'),
+      pacing: $('pacingSelect'),
+      runBtn: $('runBtn'),
+      approveBtn: $('approveBtn'),
+      exportBtn: $('exportBtn'),
+      attackBtn: $('attackBtn'),
+      resetBtn: $('resetBtn'),
+      questionPill: $('questionPill'),
+      questionPanel: $('questionPanel'),
+      aiEvidence: $('aiEvidence'),
+      withheldEvidence: $('withheldEvidence'),
+      draftPanel: $('draftPanel'),
+      timeline: $('timeline'),
+      authorityPanel: $('authorityPanel'),
+      attackBanner: $('attackBanner'),
+      attackStamp: $('attackStamp'),
+      attackTitle: $('attackTitle'),
+      attackDetail: $('attackDetail'),
+      telemetry: $('telemetry'),
+      drawer: $('drawer'),
+      drawerTitle: $('drawerTitle'),
+      drawerBody: $('drawerBody'),
+      drawerClose: $('drawerClose'),
+      kafkaDot: $('kafkaDot'),
+      schemaDot: $('schemaDot'),
+      codexDot: $('codexDot')
+    };
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        headers: { 'content-type': 'application/json', ...(options.headers || {}) },
+        ...options
+      });
+      const text = await response.text();
+      let data = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { detail: text };
+        }
+      }
+      if (!response.ok) {
+        throw new Error(data.detail || response.statusText);
+      }
+      return data;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function setStatus(status) {
+      dom.statusPill.textContent = status;
+    }
+
+    function setRun(runId) {
+      state.runId = runId;
+      dom.runPill.textContent = runId ? `Run: ${runId}` : 'Run: none';
+    }
+
+    function isActiveView(token) {
+      return token === state.viewToken;
+    }
+
+    function isCurrentRun(runId, token = state.viewToken) {
+      return Boolean(runId) && state.runId === runId && isActiveView(token);
+    }
+
+    function setStageStatus(key, label, count = null) {
+      const badge = $(`count-${key}`);
+      if (!badge) return;
+      badge.textContent = label;
+      badge.title = count ? `${count} event${count === 1 ? '' : 's'} for this run` : '';
+    }
+
+    function resetStageNode(key) {
+      const node = $(`stage-${key}`);
+      if (!node) return;
+      node.classList.remove('active', 'waiting', 'attempting', 'checking', 'denied');
+      if (key === 'draft_rejected') {
+        node.classList.add('dormant');
+      } else {
+        node.classList.remove('dormant');
+      }
+      setStageStatus(key, 'pending');
+    }
+
+    function renderPipeline() {
+      dom.pipeline.innerHTML = STAGES.map(([key, label, topic, principal]) => {
+        const layout = STAGE_LAYOUT[key] || { lane: 'main', classes: '' };
+        const note = layout.note ? ` ${layout.note}` : '';
+        return `
+        <section class="stage stage-${key} lane-${layout.lane} ${layout.classes || ''} ${key === 'draft_rejected' ? 'dormant' : ''}" id="stage-${key}" data-topic="${topic}" aria-label="${escapeHtml(label)}.${escapeHtml(note)}">
+          <div class="key">${escapeHtml(key)}</div>
+          <div class="label">${escapeHtml(label)}</div>
+          <div class="meta">
+            <span>${escapeHtml(principal)}</span>
+            <span id="count-${key}">pending</span>
+          </div>
+          <div class="meta">
+            <button data-topic="${topic}" data-action="topic">topic</button>
+            <button data-subject="${topic}-value" data-action="schema">Avro v1</button>
+          </div>
+        </section>
+      `;
+      }).join('');
+    }
+
+    function resetVisuals() {
+      state.viewToken += 1;
+      if (state.stream) {
+        state.stream.close();
+        state.stream = null;
+      }
+      state.questionId = null;
+      state.lastAttackRule = null;
+      state.seenEventIds = new Set();
+      state.authorityTest = false;
+      state.attackAttempted = false;
+      state.attackCheckingTarget = null;
+      state.attackResult = null;
+      state.stageCounts = Object.fromEntries(STAGES.map(([key]) => [key, 0]));
+      setRun(null);
+      setStatus('idle');
+      dom.telemetry.textContent = 'draft - · guard - · review - · export -';
+      dom.attackBanner.classList.remove('show', 'checking');
+      dom.attackStamp.textContent = 'DENIED';
+      dom.runBtn.disabled = false;
+      dom.attackBtn.disabled = false;
+      dom.approveBtn.disabled = true;
+      dom.exportBtn.disabled = true;
+      dom.timeline.innerHTML = `
+        <div class="event-row">
+          <div class="event-kind">ready</div>
+          <div class="event-main">Run the useful path or test the authority boundary.</div>
+          <div class="event-meta">SSE: /demo/stream/{run_id}</div>
+        </div>
+      `;
+      STAGES.forEach(([key]) => {
+        resetStageNode(key);
+      });
+      dom.questionPanel.innerHTML = `
+        <p class="question-text">Run the useful path to load the questionnaire question.</p>
+        <div class="chips">
+          <span class="chip">AI-safe evidence pending</span>
+          <span class="chip">Human review required</span>
+        </div>
+      `;
+      dom.aiEvidence.innerHTML = '<strong>AI sees</strong><div class="empty">Evidence appears after the run starts.</div>';
+      dom.withheldEvidence.innerHTML = '<strong>Withheld from AI</strong><div class="empty">Restricted evidence stays out of the prompt.</div>';
+      renderDraft(null);
+      highlightAuthorityRule(null);
+    }
+
+    function markStage(key, options = {}) {
+      const node = $(`stage-${key}`);
+      if (!node) return;
+      const terminalRejected = key === 'draft_rejected' && !options.denied && !options.checking && !options.attempting && !options.waiting;
+      node.classList.remove('dormant');
+      node.classList.remove('active', 'waiting', 'attempting', 'checking', 'denied');
+      node.classList.add(options.denied || terminalRejected ? 'denied' : options.checking ? 'checking' : options.attempting ? 'attempting' : options.waiting ? 'waiting' : 'active');
+      if (!options.noIncrement) {
+        state.stageCounts[key] = (state.stageCounts[key] || 0) + 1;
+      }
+      const label = terminalRejected ? 'rejected' : options.denied ? 'denied' : options.checking ? 'checking' : options.attempting ? 'attempt' : options.waiting ? 'waiting' : 'done';
+      setStageStatus(key, label, state.stageCounts[key] || null);
+    }
+
+    function applyStateStages(snapshot) {
+      const counts = Object.fromEntries((snapshot.stages || []).map((stage) => [stage.key, stage.count || 0]));
+      STAGES.forEach(([key]) => {
+        state.stageCounts[key] = counts[key] || 0;
+        resetStageNode(key);
+        const node = $(`stage-${key}`);
+        if (node && state.stageCounts[key] > 0) {
+          node.classList.remove('dormant');
+          node.classList.add(key === 'draft_rejected' ? 'denied' : 'active');
+          setStageStatus(key, key === 'draft_rejected' ? 'rejected' : 'done', state.stageCounts[key]);
+        }
+      });
+      if (snapshot.workflow_status === 'human_review_required') {
+        markStage('draft_accepted', { waiting: true, noIncrement: true });
+      }
+      if (state.attackAttempted) {
+        markStage('draft_proposed', { attempting: true, noIncrement: true });
+      }
+      if (state.attackCheckingTarget && !state.attackResult) {
+        const checkingStageKey = Object.entries(TOPIC_BY_STAGE).find(([, topic]) => topic === state.attackCheckingTarget)?.[0];
+        if (checkingStageKey) markStage(checkingStageKey, { checking: true, noIncrement: true });
+      }
+      if (state.attackResult) {
+        const target = state.attackResult.target_topic || 'answer.reviewed.v1';
+        const stageKey = Object.entries(TOPIC_BY_STAGE).find(([, topic]) => topic === target)?.[0];
+        if (stageKey) markStage(stageKey, { denied: true, noIncrement: true });
+      }
+    }
+
+    function pushEvent(kind, main, meta = '', security = false, eventId = null) {
+      if (eventId) {
+        if (state.seenEventIds.has(eventId)) return;
+        state.seenEventIds.add(eventId);
+      }
+      const row = document.createElement('div');
+      row.className = `event-row${security ? ' security' : ''}`;
+      row.innerHTML = `
+        <div class="event-kind">${escapeHtml(kind)}</div>
+        <div class="event-main">${escapeHtml(main)}</div>
+        <div class="event-meta">${escapeHtml(meta)}</div>
+      `;
+      dom.timeline.prepend(row);
+    }
+
+    function openStream(runId, token = state.viewToken) {
+      if (state.stream) state.stream.close();
+      const stream = new EventSource(`/demo/stream/${encodeURIComponent(runId)}`);
+      state.stream = stream;
+      stream.addEventListener('stage', (event) => {
+        if (!isCurrentRun(runId, token)) return;
+        const data = JSON.parse(event.data);
+        markStage(data.stage_key);
+        pushEvent('stage', data.summary || data.event_type, `${data.principal} -> ${data.topic}`, false, data.event_id);
+        if (data.stage_key === 'draft_proposed' || data.stage_key === 'draft_accepted') {
+          refreshState(runId, token);
+        }
+      });
+      stream.addEventListener('audit', (event) => {
+        if (!isCurrentRun(runId, token)) return;
+        const data = JSON.parse(event.data);
+        pushEvent('audit', `${data.action}: ${data.outcome}`, data.producer || '', false, data.event_id);
+      });
+      stream.addEventListener('security', (event) => {
+        if (!isCurrentRun(runId, token)) return;
+        const data = JSON.parse(event.data);
+        pushEvent('security', `${data.principal} ${data.reason}`, `${data.attempted_operation} ${data.resource}`, true, data.event_id);
+      });
+      stream.addEventListener('status', (event) => {
+        if (!isCurrentRun(runId, token)) return;
+        const data = JSON.parse(event.data);
+        setStatus(data.status);
+        if (data.question_id) {
+          state.questionId = data.question_id;
+          loadQuestion(data.question_id, token);
+        }
+        if (['waiting_for_human_review', 'reviewed_pending_export', 'export_ready', 'denied', 'failed'].includes(data.status)) {
+          setTimeout(() => {
+            if (!isCurrentRun(runId, token)) return;
+            refreshState(runId, token);
+            refreshAudit(runId, token);
+          }, 200);
+        }
+      });
+      stream.addEventListener('telemetry', (event) => {
+        if (!isCurrentRun(runId, token)) return;
+        const data = JSON.parse(event.data);
+        renderTelemetry(data);
+      });
+      stream.onerror = () => {
+        setTimeout(() => {
+          if (isCurrentRun(runId, token)) {
+            refreshState(runId, token).catch(() => {});
+            refreshAudit(runId, token).catch(() => {});
+          }
+        }, 1200);
+      };
+    }
+
+    async function runUsefulPath() {
+      resetVisuals();
+      const token = state.viewToken;
+      setStatus('allocating');
+      dom.runBtn.disabled = true;
+      try {
+        const allocation = await api('/demo/runs/allocate', {
+          method: 'POST',
+          body: JSON.stringify({ scenario_id: 'happy-path', pacing: dom.pacing.value })
+        });
+        if (!isActiveView(token)) return;
+        setRun(allocation.run_id);
+        openStream(allocation.run_id, token);
+        setStatus('drafting');
+        const result = await api(`/demo/run/happy-path?run_id=${encodeURIComponent(allocation.run_id)}&pacing=${encodeURIComponent(dom.pacing.value)}&until=review`, { method: 'POST' });
+        if (!isCurrentRun(allocation.run_id, token)) return;
+        state.questionId = result.question_id || 'Q-001';
+        await loadQuestion(state.questionId, token);
+        await refreshState(allocation.run_id, token);
+        await refreshAudit(allocation.run_id, token);
+        if (!isCurrentRun(allocation.run_id, token)) return;
+        setStatus('human_review_required');
+      } catch (error) {
+        if (!isActiveView(token)) return;
+        setStatus('failed');
+        pushEvent('error', error.message);
+      } finally {
+        if (isActiveView(token)) dom.runBtn.disabled = false;
+      }
+    }
+
+    async function approveDraft() {
+      if (!state.runId || !state.questionId) return;
+      const token = state.viewToken;
+      const runId = state.runId;
+      const questionId = state.questionId;
+      dom.approveBtn.disabled = true;
+      setStatus('reviewing');
+      try {
+        await api(`/demo/review/${encodeURIComponent(runId)}/${encodeURIComponent(questionId)}?pacing=${encodeURIComponent(dom.pacing.value)}`, { method: 'POST' });
+        if (!isCurrentRun(runId, token)) return;
+        await refreshState(runId, token);
+        await refreshAudit(runId, token);
+        if (!isCurrentRun(runId, token)) return;
+        setStatus('reviewed_pending_export');
+      } catch (error) {
+        if (!isCurrentRun(runId, token)) return;
+        pushEvent('error', error.message);
+        dom.approveBtn.disabled = false;
+      }
+    }
+
+    async function exportResponse() {
+      if (!state.runId) return;
+      const token = state.viewToken;
+      const runId = state.runId;
+      dom.exportBtn.disabled = true;
+      setStatus('exporting');
+      try {
+        await api(`/demo/export/${encodeURIComponent(runId)}?pacing=${encodeURIComponent(dom.pacing.value)}`, { method: 'POST' });
+        if (!isCurrentRun(runId, token)) return;
+        await refreshState(runId, token);
+        await refreshAudit(runId, token);
+        if (!isCurrentRun(runId, token)) return;
+        setStatus('export_ready');
+      } catch (error) {
+        if (!isCurrentRun(runId, token)) return;
+        pushEvent('error', error.message);
+        dom.exportBtn.disabled = false;
+      }
+    }
+
+    async function testAiDirectWrite() {
+      resetVisuals();
+      const token = state.viewToken;
+      state.authorityTest = true;
+      setStatus('building_normal_path');
+      dom.attackBtn.disabled = true;
+      dom.runBtn.disabled = true;
+      try {
+        const allocation = await api('/demo/runs/allocate', {
+          method: 'POST',
+          body: JSON.stringify({ scenario_id: 'happy-path', pacing: dom.pacing.value })
+        });
+        if (!isActiveView(token)) return;
+        const runId = allocation.run_id;
+        setRun(runId);
+        openStream(runId, token);
+        pushEvent(
+          'setup',
+          'First build the normal context up to AI-safe evidence',
+          'received -> prepared -> evidence'
+        );
+        const setup = await api(`/demo/run/happy-path?run_id=${encodeURIComponent(runId)}&pacing=${encodeURIComponent(dom.pacing.value)}&until=evidence`, { method: 'POST' });
+        if (!isCurrentRun(runId, token)) return;
+        state.questionId = setup.question_id || 'Q-001';
+        await loadQuestion(state.questionId, token);
+        await refreshState(runId, token);
+        await refreshAudit(runId, token);
+        if (!isCurrentRun(runId, token)) return;
+        dom.approveBtn.disabled = true;
+        dom.exportBtn.disabled = true;
+
+        setStatus('testing_authority_boundary');
+        const attackTarget = 'answer.reviewed.v1';
+        state.attackAttempted = true;
+        state.attackCheckingTarget = attackTarget;
+        markStage('draft_proposed', { attempting: true, noIncrement: true });
+        renderAttackProgress(attackTarget);
+        pushEvent(
+          'attempt',
+          'svc-ai-drafter tries to write Human reviewed instead of publishing a draft',
+          `WRITE ${attackTarget}`
+        );
+        const result = await api(`/demo/attack/ai-direct-write/${encodeURIComponent(runId)}?pacing=${encodeURIComponent(dom.pacing.value)}&target_topic=${encodeURIComponent(attackTarget)}`, { method: 'POST' });
+        if (!isCurrentRun(runId, token)) return;
+        renderAttack(result);
+        await refreshAudit(runId, token);
+        if (!isCurrentRun(runId, token)) return;
+        dom.approveBtn.disabled = true;
+        dom.exportBtn.disabled = true;
+        setStatus(result.denied ? 'denied' : 'allowed');
+      } catch (error) {
+        if (!isActiveView(token)) return;
+        setStatus('failed');
+        if (state.authorityTest) renderAttackFailure(error);
+        pushEvent('error', error.message);
+      } finally {
+        if (isActiveView(token)) {
+          dom.attackBtn.disabled = false;
+          dom.runBtn.disabled = false;
+        }
+      }
+    }
+
+    function renderAttackProgress(target) {
+      const stageKey = Object.entries(TOPIC_BY_STAGE).find(([, topic]) => topic === target)?.[0];
+      if (stageKey) {
+        markStage(stageKey, { checking: true, noIncrement: true });
+      }
+      dom.attackBanner.classList.add('show', 'checking');
+      dom.attackStamp.innerHTML = '<span class="spinner" aria-hidden="true"></span>CHECKING';
+      dom.attackTitle.textContent = 'Kafka authorization check in progress';
+      dom.attackDetail.textContent = `svc-ai-drafter is attempting WRITE ${target}. The request is still in flight; no allowed or denied broker result has returned yet.`;
+      pushEvent(
+        'checking',
+        'Kafka authorization check in progress',
+        `svc-ai-drafter WRITE ${target}`
+      );
+    }
+
+    function renderAttackFailure(error) {
+      state.attackCheckingTarget = null;
+      dom.attackBanner.classList.remove('checking');
+      dom.attackBanner.classList.add('show');
+      dom.attackStamp.textContent = 'FAILED';
+      dom.attackTitle.textContent = 'Authority test did not complete';
+      dom.attackDetail.textContent = error.message || 'The backend did not return an authorization result.';
+    }
+
+    function renderAttack(result) {
+      const target = result.target_topic || 'questionnaire.response.ready.v1';
+      const stageKey = Object.entries(TOPIC_BY_STAGE).find(([, topic]) => topic === target)?.[0];
+      state.lastAttackRule = result.acl_rule;
+      state.attackResult = result;
+      state.attackCheckingTarget = null;
+      if (stageKey) {
+        markStage(stageKey, { denied: true, noIncrement: true });
+      }
+      dom.attackBanner.classList.remove('checking');
+      dom.attackStamp.textContent = result.denied ? 'DENIED' : 'ALLOWED';
+      dom.attackTitle.textContent = `${result.principal || 'svc-ai-drafter'} tried to jump from Codex Draft to ${target}`;
+      dom.attackDetail.textContent = `${result.broker_error_code || 'TOPIC_AUTHORIZATION_FAILED'} in ${result.duration_ms || 0}ms. Codex Draft is the actor; Human reviewed is the denied target. No forged review event was created.`;
+      dom.attackBanner.classList.add('show');
+      pushEvent('denied', `${result.principal || 'svc-ai-drafter'} cannot write ${target}`, result.reason || '', true);
+      renderAttemptProof(result, true);
+      highlightAuthorityRule(result.acl_rule);
+    }
+
+    function renderAttemptProof(result, openInspector = false) {
+      const payload = result.attempted_payload || {};
+      const topic = result.target_topic || 'answer.reviewed.v1';
+      const proof = {
+        attempted_write: {
+          principal: result.principal || 'svc-ai-drafter',
+          operation: result.attempted_operation || 'WRITE',
+          target_topic: topic,
+          event_type: result.attempted_event_type || payload.event_type || 'unknown',
+          payload
+        },
+        broker_response: {
+          denied: result.denied,
+          error: result.broker_error_code || 'TOPIC_AUTHORIZATION_FAILED',
+          security_alert_event_id: result.security_alert_event_id || null
+        },
+        negative_proof: `No event was committed to ${topic} for this attempted write.`
+      };
+      dom.draftPanel.innerHTML += `
+        <section class="proof-box" aria-label="Direct write proof">
+          <strong>Direct write proof</strong>
+          <div>The AI drafter service attempted a forbidden Kafka write to the human-reviewed topic. Kafka rejected it before the event could become workflow state.</div>
+          <pre>${escapeHtml(JSON.stringify(proof, null, 2))}</pre>
+        </section>
+      `;
+      if (openInspector) {
+        openDrawer('Direct write proof', JSON.stringify(proof, null, 2));
+      }
+    }
+
+    async function refreshState(runId, token = state.viewToken) {
+      if (!isCurrentRun(runId, token)) return null;
+      const snapshot = await api(`/demo/state/${encodeURIComponent(runId)}`);
+      if (!isCurrentRun(runId, token)) return null;
+      applyStateStages(snapshot);
+      state.questionId = snapshot.current_question_id || state.questionId;
+      if (state.questionId) {
+        await loadQuestion(state.questionId, token);
+      }
+      if (!isCurrentRun(runId, token)) return null;
+      renderDraft(snapshot);
+      if (state.authorityTest) {
+        dom.approveBtn.disabled = true;
+        dom.exportBtn.disabled = true;
+      } else {
+        dom.approveBtn.disabled = snapshot.workflow_status !== 'human_review_required';
+        dom.exportBtn.disabled = snapshot.workflow_status !== 'reviewed_pending_export';
+        if (snapshot.workflow_status) setStatus(snapshot.workflow_status);
+      }
+      if (snapshot.telemetry) renderTelemetry(snapshot.telemetry);
+      return snapshot;
+    }
+
+    async function refreshAudit(runId, token = state.viewToken) {
+      if (!isCurrentRun(runId, token)) return;
+      const audit = await api(`/demo/audit/${encodeURIComponent(runId)}`);
+      if (!isCurrentRun(runId, token)) return;
+      for (const item of audit.events || []) {
+        if (item.kind === 'security') {
+          pushEvent('security', `${item.principal} ${item.reason}`, `${item.attempted_operation || 'WRITE'} ${item.resource}`, true, item.event_id);
+        } else {
+          pushEvent('audit', `${item.action}: ${item.outcome}`, item.producer || item.topic || '', false, item.event_id);
+        }
+      }
+    }
+
+    async function loadQuestion(questionId, token = state.viewToken) {
+      if (!isActiveView(token)) return null;
+      const detail = await api(`/demo/question/${encodeURIComponent(questionId)}`);
+      if (!isActiveView(token)) return null;
+      dom.questionPill.textContent = detail.question_id;
+      dom.questionPanel.innerHTML = `
+        <p class="question-text">${escapeHtml(detail.text)}</p>
+        <div class="chips">
+          <span class="chip">${escapeHtml(detail.control_area)}</span>
+          <span class="chip">risk:${escapeHtml(detail.risk_hint)}</span>
+          <span class="chip">question:${escapeHtml(detail.question_id)}</span>
+        </div>
+      `;
+      renderEvidence(detail);
+      return detail;
+    }
+
+    function renderEvidence(detail) {
+      const safe = detail.ai_safe_evidence || [];
+      const withheld = detail.withheld_evidence || [];
+      dom.aiEvidence.innerHTML = '<strong>AI sees</strong>' + (
+        safe.length ? safe.map((item) => `
+          <div class="evidence-item">
+            <div class="evidence-id">${escapeHtml(item.evidence_id)}</div>
+            <strong>${escapeHtml(item.title)}</strong>
+            <div>${escapeHtml(item.safe_summary)}</div>
+          </div>
+        `).join('') : '<div class="empty">No AI-safe evidence selected yet.</div>'
+      );
+      dom.withheldEvidence.innerHTML = '<strong>Withheld from AI</strong>' + (
+        withheld.length ? withheld.map((item) => `
+          <div class="evidence-item">
+            <div class="evidence-id">${escapeHtml(item.evidence_id)}</div>
+            <strong>${escapeHtml(item.title)}</strong>
+            <div>${escapeHtml(item.redaction_label)}</div>
+          </div>
+        `).join('') : '<div class="empty">No withheld evidence for this question.</div>'
+      );
+    }
+
+    function renderDraft(snapshot) {
+      if (!snapshot) {
+        dom.draftPanel.innerHTML = `
+          <strong>Workflow state</strong>
+          <p class="draft-answer empty">No reviewed/export-ready event exists before human approval.</p>
+        `;
+        return;
+      }
+      const draft = snapshot.draft;
+      const accepted = snapshot.accepted;
+      const reviewed = snapshot.reviewed;
+      const response = snapshot.response_ready;
+      const parts = [];
+      if (draft) {
+        parts.push(`<p class="draft-answer">${escapeHtml(draft.draft_answer)}</p>`);
+        parts.push(`<div class="chips"><span class="chip">${escapeHtml(draft.answer_type)}</span><span class="chip">confidence:${escapeHtml(draft.confidence)}</span><span class="chip">evidence:${escapeHtml((draft.evidence_ids || []).join(', ') || 'none')}</span></div>`);
+      } else {
+        parts.push('<p class="draft-answer empty">Codex draft pending.</p>');
+      }
+      if (accepted) {
+        parts.push('<div class="locked-note">Policy guard accepted the draft. Human review is required before export.</div>');
+      }
+      if (reviewed) {
+        parts.push(`<div><strong>Review:</strong> ${escapeHtml(reviewed.decision)} by ${escapeHtml(reviewed.reviewer_id)}</div>`);
+      } else {
+        parts.push('<div><strong>Review:</strong> locked until presenter approval.</div>');
+      }
+      if (response) {
+        parts.push(`<div><strong>Export:</strong> ${escapeHtml(response.export_summary)}</div>`);
+      } else {
+        parts.push('<div><strong>Export:</strong> no response-ready event yet.</div>');
+      }
+      dom.draftPanel.innerHTML = `<strong>Workflow state</strong>${parts.join('')}`;
+      if (state.attackResult) {
+        renderAttemptProof(state.attackResult, false);
+      }
+    }
+
+    function renderTelemetry(metrics) {
+      const draft = metrics.draft_ms ?? '-';
+      const guard = metrics.guard_ms ?? '-';
+      const review = metrics.review_ms ?? '-';
+      const exp = metrics.export_ms ?? '-';
+      dom.telemetry.textContent = `draft ${draft}ms · guard ${guard}ms · review ${review}ms · export ${exp}ms`;
+    }
+
+    async function loadAuthority() {
+      try {
+        const boundary = await api('/demo/authority-boundary');
+        const drafter = (boundary.principals || []).find((principal) => principal.id === 'svc-ai-drafter');
+        if (!drafter) {
+          dom.authorityPanel.innerHTML = '<div class="empty">No svc-ai-drafter authority data.</div>';
+          return;
+        }
+        dom.authorityPanel.innerHTML = `
+          <span class="pill">${boundary.acls_enforced ? 'ACLs enforced' : 'ACLs permissive'}</span>
+          ${drafter.rules.map((rule) => `
+            <div class="rule" data-principal="svc-ai-drafter" data-topic="${escapeHtml(rule.topic)}" data-operation="${escapeHtml(rule.operation)}">
+              <div><strong>${escapeHtml(rule.operation)}</strong> <span class="${rule.permission === 'ALLOW' ? 'allow' : 'deny'}">${escapeHtml(rule.permission)}</span></div>
+              <div class="topic">${escapeHtml(rule.topic)}</div>
+            </div>
+          `).join('')}
+        `;
+      } catch (error) {
+        dom.authorityPanel.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function highlightAuthorityRule(rule) {
+      document.querySelectorAll('.rule').forEach((row) => row.classList.remove('hit'));
+      if (!rule) return;
+      const principal = String(rule.principal || '').replace('User:', '');
+      const match = document.querySelector(`.rule[data-principal="${cssEscape(principal)}"][data-topic="${cssEscape(rule.resource_name)}"][data-operation="${cssEscape(rule.operation)}"]`);
+      if (match) match.classList.add('hit');
+    }
+
+    function cssEscape(value) {
+      if (window.CSS && CSS.escape) return CSS.escape(value);
+      return String(value).replace(/["\\]/g, '\\$&');
+    }
+
+    async function pollHealth() {
+      try {
+        const health = await api('/health/connection');
+        const deps = health.dependencies || {};
+        setDot(dom.kafkaDot, deps.kafka);
+        setDot(dom.schemaDot, deps.schema_registry);
+        setDot(dom.codexDot, deps.codex);
+      } catch {
+        setDot(dom.kafkaDot, { ok: false });
+        setDot(dom.schemaDot, { ok: false });
+        setDot(dom.codexDot, { ok: false });
+      }
+    }
+
+    function setDot(dot, dependency) {
+      dot.classList.toggle('ok', Boolean(dependency && dependency.ok));
+      dot.classList.toggle('bad', Boolean(dependency && !dependency.ok));
+    }
+
+    async function openTopic(topic) {
+      if (!state.runId) {
+        openDrawer(`Topic ${topic}`, 'Run a flow first so the topic peek can filter by run_id.');
+        return;
+      }
+      const data = await api(`/demo/topics/${encodeURIComponent(topic)}/events?run_id=${encodeURIComponent(state.runId)}&limit=20`);
+      openDrawer(`Topic ${topic}`, JSON.stringify(data, null, 2));
+    }
+
+    async function openSchema(subject) {
+      const data = await api(`/demo/schemas/${encodeURIComponent(subject)}`);
+      openDrawer(`Schema ${subject}`, data.schema_text || JSON.stringify(data.schema || data, null, 2));
+    }
+
+    function openDrawer(title, body) {
+      dom.drawerTitle.textContent = title;
+      dom.drawerBody.textContent = body;
+      dom.drawer.classList.add('show');
+    }
+
+    dom.runBtn.addEventListener('click', runUsefulPath);
+    dom.approveBtn.addEventListener('click', approveDraft);
+    dom.exportBtn.addEventListener('click', exportResponse);
+    dom.attackBtn.addEventListener('click', testAiDirectWrite);
+    dom.resetBtn.addEventListener('click', resetVisuals);
+    dom.drawerClose.addEventListener('click', () => dom.drawer.classList.remove('show'));
+    dom.pipeline.addEventListener('click', (event) => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      if (button.dataset.action === 'topic') {
+        openTopic(button.dataset.topic).catch((error) => openDrawer('Topic error', error.message));
+      }
+      if (button.dataset.action === 'schema') {
+        openSchema(button.dataset.subject).catch((error) => openDrawer('Schema error', error.message));
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.target.matches('input, select, textarea')) return;
+      if (event.key === 'r' || event.key === 'R') runUsefulPath();
+      if (event.key === 'a' || event.key === 'A') approveDraft();
+      if (event.key === 'e' || event.key === 'E') exportResponse();
+      if (event.key === 'x' || event.key === 'X') testAiDirectWrite();
+      if (event.key === 'Escape') dom.drawer.classList.remove('show');
+    });
+
+    renderPipeline();
+    loadAuthority();
+    pollHealth();
+    setInterval(pollHealth, 5000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+{
+  "type": "record",
+  "name": "RejectedDraftValue",
+  "namespace": "demo.events",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "run_id",
+      "type": "string"
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "default": "answer.draft.rejected"
+    },
+    {
+      "name": "occurred_at",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "producer",
+      "type": "string"
+    },
+    {
+      "name": "schema_version",
+      "type": "int",
+      "default": 1
+    },
+    {
+      "name": "question_id",
+      "type": "string"
+    },
+    {
+      "name": "draft_event_id",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "reason_codes",
+      "type": {
+        "type": "array",
+        "items": "string"
+      }
+    },
+    {
+      "name": "message",
+      "type": "string"
+    },
+    {
+      "name": "evidence_ids",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "default": []
+    }
+  ]
+}

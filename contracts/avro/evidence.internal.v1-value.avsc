@@ -1,0 +1,96 @@
+{
+  "type": "record",
+  "name": "EvidenceItemValue",
+  "namespace": "demo.events",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "run_id",
+      "type": "string"
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "default": "evidence.internal"
+    },
+    {
+      "name": "occurred_at",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "producer",
+      "type": "string"
+    },
+    {
+      "name": "schema_version",
+      "type": "int",
+      "default": 1
+    },
+    {
+      "name": "evidence_id",
+      "type": "string"
+    },
+    {
+      "name": "title",
+      "type": "string"
+    },
+    {
+      "name": "source_type",
+      "type": "string"
+    },
+    {
+      "name": "control_area",
+      "type": "string"
+    },
+    {
+      "name": "classification",
+      "type": "string"
+    },
+    {
+      "name": "allowed_for_ai",
+      "type": "boolean"
+    },
+    {
+      "name": "allowed_for_external_response",
+      "type": "boolean"
+    },
+    {
+      "name": "content",
+      "type": "string"
+    },
+    {
+      "name": "safe_summary",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "valid_from",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "valid_until",
+      "type": [
+        "null",
+        "string"
+      ],
+      "default": null
+    },
+    {
+      "name": "owner",
+      "type": "string"
+    }
+  ]
+}

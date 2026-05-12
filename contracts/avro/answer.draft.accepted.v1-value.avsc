@@ -1,0 +1,61 @@
+{
+  "type": "record",
+  "name": "AcceptedDraftValue",
+  "namespace": "demo.events",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "run_id",
+      "type": "string"
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "default": "answer.draft.accepted"
+    },
+    {
+      "name": "occurred_at",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "producer",
+      "type": "string"
+    },
+    {
+      "name": "schema_version",
+      "type": "int",
+      "default": 1
+    },
+    {
+      "name": "question_id",
+      "type": "string"
+    },
+    {
+      "name": "draft_event_id",
+      "type": "string"
+    },
+    {
+      "name": "evidence_ids",
+      "type": {
+        "type": "array",
+        "items": "string"
+      }
+    },
+    {
+      "name": "policy_result",
+      "type": "string",
+      "default": "accepted"
+    },
+    {
+      "name": "requires_human_review",
+      "type": "boolean",
+      "default": true
+    }
+  ]
+}

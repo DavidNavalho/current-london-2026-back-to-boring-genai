@@ -1,0 +1,69 @@
+{
+  "type": "record",
+  "name": "PreparedQuestionValue",
+  "namespace": "demo.events",
+  "fields": [
+    {
+      "name": "event_id",
+      "type": "string"
+    },
+    {
+      "name": "run_id",
+      "type": "string"
+    },
+    {
+      "name": "event_type",
+      "type": "string",
+      "default": "questionnaire.question_prepared"
+    },
+    {
+      "name": "occurred_at",
+      "type": {
+        "type": "long",
+        "logicalType": "timestamp-millis"
+      }
+    },
+    {
+      "name": "producer",
+      "type": "string"
+    },
+    {
+      "name": "schema_version",
+      "type": "int",
+      "default": 1
+    },
+    {
+      "name": "questionnaire_id",
+      "type": "string"
+    },
+    {
+      "name": "question_id",
+      "type": "string"
+    },
+    {
+      "name": "question_text",
+      "type": "string"
+    },
+    {
+      "name": "ordinal",
+      "type": "int"
+    },
+    {
+      "name": "control_area",
+      "type": "string"
+    },
+    {
+      "name": "scenario_tags",
+      "type": {
+        "type": "array",
+        "items": "string"
+      },
+      "default": []
+    },
+    {
+      "name": "risk_hint",
+      "type": "string",
+      "default": "normal"
+    }
+  ]
+}

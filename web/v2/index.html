@@ -1,0 +1,2192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Questionnaire AI Demo — v2</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f5f8;
+      --panel: #ffffff;
+      --panel-2: #fbfcfd;
+      --ink: #11202b;
+      --ink-2: #2a3a48;
+      --muted: #5d6b78;
+      --line: #d6dee6;
+      --line-2: #e9eef3;
+      --accent: #0f766e;
+      --accent-2: #0e9085;
+      --warn: #b45309;
+      --warn-bg: #fff8ed;
+      --bad: #b91c1c;
+      --bad-bg: #fff1f1;
+      --good: #166534;
+      --good-bg: #effaf2;
+      --idle: #cbd3dc;
+      --denied: #7f1d1d;
+      --denied-bg: #fee2e2;
+      --shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.06);
+    }
+    body.contrast {
+      --bg: #0b1220;
+      --panel: #11192a;
+      --panel-2: #0e1626;
+      --ink: #f1f5f9;
+      --ink-2: #e2e8f0;
+      --muted: #9aa6b2;
+      --line: #1f2a44;
+      --line-2: #182338;
+      --accent: #2dd4bf;
+      --accent-2: #5eead4;
+      --warn: #fbbf24;
+      --warn-bg: #2a1f04;
+      --bad: #f87171;
+      --bad-bg: #2a0e0e;
+      --good: #4ade80;
+      --good-bg: #052e1a;
+      --idle: #334155;
+      --denied: #fca5a5;
+      --denied-bg: #2a0e0e;
+      --shadow: none;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 15px;
+    }
+    .app {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      min-height: 100%;
+      gap: 12px;
+      padding: 12px 14px 10px;
+      max-width: 1640px;
+      margin: 0 auto;
+    }
+    /* ---------- top bar ---------- */
+    header.topbar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 19px;
+      letter-spacing: -0.01em;
+    }
+    .brand .mode-badge {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--muted);
+    }
+    .brand .mode-badge.live { color: var(--good); border-color: #9cd0ad; background: var(--good-bg); }
+    .brand .mode-badge.rehearsal { color: var(--warn); border-color: #f1c27d; background: var(--warn-bg); }
+    .topbar .spacer { flex: 1; }
+    .topbar .group {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      min-height: 36px;
+    }
+    .topbar label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .topbar select, .topbar button.tb {
+      font: inherit;
+      font-size: 13px;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--ink);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .topbar button.tb:hover { border-color: var(--accent); color: var(--accent); }
+    .topbar button.tb.danger:hover { border-color: var(--bad); color: var(--bad); }
+
+    .conn-light {
+      display: inline-grid;
+      grid-template-columns: repeat(3, auto);
+      gap: 12px;
+      padding: 0 4px;
+    }
+    .conn-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .conn-dot::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--idle);
+      box-shadow: 0 0 0 2px rgba(0,0,0,0.04);
+    }
+    .conn-dot.ok::before { background: #22c55e; }
+    .conn-dot.bad::before { background: var(--bad); }
+    .conn-dot.unknown::before { background: var(--idle); }
+
+    .run-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      font-size: 12px;
+      color: var(--muted);
+      max-width: 380px;
+    }
+    .run-pill code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--ink-2);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 220px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .status-pill::before {
+      content: "•";
+      font-size: 16px;
+      line-height: 0;
+      color: var(--idle);
+    }
+    .status-pill.running { color: var(--accent); border-color: var(--accent); background: #ecfdf5; }
+    .status-pill.running::before { color: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+    .status-pill.waiting { color: var(--warn); border-color: #f1c27d; background: var(--warn-bg); }
+    .status-pill.waiting::before { color: var(--warn); }
+    .status-pill.ready { color: var(--good); border-color: #9cd0ad; background: var(--good-bg); }
+    .status-pill.ready::before { color: var(--good); }
+    .status-pill.rejected { color: var(--bad); border-color: #e9a5a5; background: var(--bad-bg); }
+    .status-pill.rejected::before { content: "✕"; color: var(--bad); }
+    .status-pill.denied { color: var(--denied); border-color: #f4b4b4; background: var(--denied-bg); }
+    .status-pill.denied::before { content: "🔒"; color: var(--denied); }
+    .status-pill.replay { color: var(--muted); border-color: var(--line); }
+    .status-pill.replay::before { content: "↺"; }
+
+    /* ---------- pipeline ---------- */
+    section.pipeline-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px 16px;
+      box-shadow: var(--shadow);
+    }
+    .pipeline-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    .pipeline-head h2 {
+      margin: 0;
+      font-size: 13px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .pipeline-head .pipeline-summary {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .pipeline {
+      display: flex;
+      align-items: stretch;
+      gap: 10px;
+      position: relative;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .stage-col { display: grid; gap: 8px; align-content: center; flex: 1 1 130px; min-width: 120px; }
+    .stage-col.fork { grid-template-rows: 1fr 1fr; gap: 6px; }
+    .stage {
+      position: relative;
+      border: 1.5px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 10px 9px;
+      background: var(--panel-2);
+      min-height: 96px;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 4px;
+      transition: transform 120ms ease, border-color 200ms ease, background 200ms ease, box-shadow 200ms ease;
+    }
+    .stage .stage-glyph {
+      font-size: 16px;
+      line-height: 1;
+      color: var(--idle);
+    }
+    .stage .stage-label {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+    }
+    .stage .stage-principal {
+      font-size: 10.5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--muted);
+      letter-spacing: -0.02em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .stage .stage-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .stage .stage-count {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--ink-2);
+    }
+    .stage .schema-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      cursor: help;
+      user-select: none;
+    }
+    .stage.touched {
+      border-color: var(--accent);
+      background: #ecfdf5;
+      box-shadow: 0 0 0 3px rgba(15,118,110,0.10);
+    }
+    .stage.touched .stage-glyph { color: var(--accent); }
+    .stage.touched .stage-count { color: var(--accent-2); }
+    .stage.warn-touched {
+      border-color: var(--warn);
+      background: var(--warn-bg);
+    }
+    .stage.warn-touched .stage-glyph { color: var(--warn); }
+    .stage.warn-touched .stage-count { color: var(--warn); }
+    .stage.bad-touched {
+      border-color: var(--bad);
+      background: var(--bad-bg);
+    }
+    .stage.bad-touched .stage-glyph { color: var(--bad); }
+    .stage.bad-touched .stage-count { color: var(--bad); }
+    .stage.denied {
+      border-color: var(--denied);
+      background: var(--denied-bg);
+    }
+    .stage.denied::after {
+      content: "DENIED";
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      font-size: 10px;
+      font-weight: 800;
+      color: #fff;
+      background: var(--denied);
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.08em;
+      transform: rotate(-4deg);
+      box-shadow: 0 1px 2px rgba(127,29,29,0.4);
+    }
+    .stage.pulse { animation: stage-pulse 700ms ease-out 1; }
+    @keyframes stage-pulse {
+      0% { transform: scale(1); }
+      30% { transform: scale(1.04); box-shadow: 0 0 0 6px rgba(15,118,110,0.18); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(15,118,110,0); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 1; }
+    }
+    .arrow {
+      flex: 0 0 auto;
+      align-self: center;
+      display: grid;
+      place-items: center;
+      color: var(--idle);
+      font-size: 18px;
+      line-height: 1;
+      min-width: 14px;
+      padding: 0 2px;
+      transition: color 200ms ease;
+    }
+    .arrow.live { color: var(--accent); }
+    .arrow.bad { color: var(--bad); }
+    .arrow.fork {
+      display: grid;
+      gap: 16px;
+      font-size: 14px;
+    }
+    .stage[data-key="draft_rejected"] {
+      opacity: 0.55;
+    }
+    .stage[data-key="draft_rejected"].bad-touched {
+      opacity: 1;
+    }
+
+    /* ---------- main layout ---------- */
+    main.layout {
+      display: grid;
+      grid-template-columns: 280px minmax(420px, 1fr) 380px;
+      gap: 12px;
+      align-items: start;
+    }
+    .col { display: grid; gap: 12px; }
+    section.panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+    }
+    section.panel h2 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    /* ---------- scenario tiles ---------- */
+    .tiles { display: grid; gap: 8px; }
+    .tile {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-2);
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      color: inherit;
+    }
+    .tile:hover {
+      border-color: var(--accent);
+      background: var(--panel);
+    }
+    .tile.primary {
+      border-color: var(--accent);
+      background: #ecfdf5;
+    }
+    .tile.danger {
+      border-color: var(--denied);
+      background: #fef2f2;
+    }
+    .tile.danger:hover { background: var(--denied-bg); }
+    .tile .key {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .tile .body { display: grid; gap: 2px; min-width: 0; }
+    .tile .name { font-size: 13px; font-weight: 700; }
+    .tile .blurb { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+    .tile .outcome {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: var(--panel);
+      white-space: nowrap;
+    }
+    .tile .outcome.good { color: var(--good); border-color: #9cd0ad; background: var(--good-bg); }
+    .tile .outcome.bad { color: var(--bad); border-color: #e9a5a5; background: var(--bad-bg); }
+    .tile .outcome.deny { color: var(--denied); border-color: #f4b4b4; background: var(--denied-bg); }
+    .tile[disabled] { cursor: progress; opacity: 0.6; }
+
+    /* ---------- centerpiece ---------- */
+    .question-card {
+      display: grid;
+      gap: 10px;
+    }
+    .qhead {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .qhead .qid {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--ink-2);
+      letter-spacing: 0.02em;
+    }
+    .chip.risk-low { color: var(--good); border-color: #9cd0ad; background: var(--good-bg); }
+    .chip.risk-medium { color: var(--warn); border-color: #f1c27d; background: var(--warn-bg); }
+    .chip.risk-high { color: var(--bad); border-color: #e9a5a5; background: var(--bad-bg); }
+    .chip.risk-critical { color: #fff; border-color: var(--denied); background: var(--denied); }
+    .qtext {
+      font-size: 19px;
+      font-weight: 600;
+      line-height: 1.35;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .evidence-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .evidence-col {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--panel-2);
+      min-height: 110px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 6px;
+    }
+    .evidence-col h3 {
+      margin: 0;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .evidence-col.withheld { background: repeating-linear-gradient(45deg, var(--panel-2), var(--panel-2) 6px, var(--bad-bg) 6px, var(--bad-bg) 8px); border-color: #e9a5a5; }
+    .ev-list { display: grid; gap: 6px; }
+    .ev-item {
+      padding: 7px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      font-size: 12px;
+    }
+    .ev-item .ev-title { font-weight: 700; color: var(--ink); }
+    .ev-item .ev-meta { color: var(--muted); font-size: 10.5px; margin-top: 1px; }
+    .ev-item .ev-summary { color: var(--ink-2); margin-top: 4px; line-height: 1.4; }
+    .ev-item.withheld .ev-title { color: var(--bad); }
+    .ev-item.withheld .ev-redaction {
+      margin-top: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      color: var(--bad);
+    }
+    .evidence-empty {
+      font-size: 12px;
+      color: var(--muted);
+      font-style: italic;
+      padding: 8px 4px;
+    }
+
+    .draft-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--panel-2);
+      display: grid;
+      gap: 8px;
+    }
+    .draft-card .label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .draft-card .draft-text {
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--ink);
+      min-height: 22px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .draft-card.empty .draft-text { color: var(--muted); font-style: italic; }
+    .draft-card .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .draft-result {
+      border-top: 1px dashed var(--line);
+      padding-top: 8px;
+      display: grid;
+      gap: 6px;
+    }
+    .draft-result .reason-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .reason-chip {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      color: var(--bad);
+      background: var(--bad-bg);
+      border: 1px solid #e9a5a5;
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+
+    .actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    button.action {
+      flex: 1;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0 12px;
+    }
+    button.action.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    button.action.primary:hover { background: var(--accent-2); }
+    button.action:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* ---------- ticker ---------- */
+    .ticker {
+      display: grid;
+      gap: 4px;
+      max-height: 460px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      font-size: 12px;
+      align-items: start;
+    }
+    .row .when {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+    .row .body { display: grid; gap: 2px; min-width: 0; }
+    .row .body .head { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .row .body .head .who {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--ink-2);
+      font-size: 11px;
+    }
+    .row .body .head .what {
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .row .body .detail {
+      color: var(--muted);
+      font-size: 11.5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .row.stage { border-left: 3px solid var(--accent); }
+    .row.audit { border-left: 3px solid #94a3b8; }
+    .row.security {
+      border-left: 3px solid var(--bad);
+      background: var(--bad-bg);
+    }
+    .row.security .what { color: var(--bad); }
+    .row.status { border-left: 3px solid #cbd5e1; opacity: 0.85; }
+    .row.pinned {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      box-shadow: 0 2px 4px rgba(127,29,29,0.16);
+    }
+    .ticker-empty { color: var(--muted); font-style: italic; padding: 8px 4px; }
+
+    /* ---------- authority boundary ---------- */
+    .boundary-table { display: grid; gap: 8px; }
+    .principal {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: var(--panel-2);
+    }
+    .principal .pname {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .principal .pname b {
+      font-size: 13px;
+      color: var(--ink);
+    }
+    .principal .pname code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .acl-rules { display: grid; gap: 4px; }
+    .acl-rule {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 6px;
+      align-items: center;
+      font-size: 11.5px;
+      padding: 3px 6px;
+      border-radius: 4px;
+      transition: background 180ms ease;
+    }
+    .acl-rule code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      color: var(--ink-2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .acl-op {
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .acl-perm {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 1px 6px;
+      border-radius: 999px;
+      letter-spacing: 0.04em;
+    }
+    .acl-perm.allow { color: var(--good); background: var(--good-bg); border: 1px solid #9cd0ad; }
+    .acl-perm.deny { color: var(--bad); background: var(--bad-bg); border: 1px solid #e9a5a5; }
+    .acl-perm.no-allow-match { color: var(--muted); background: var(--panel); border: 1px solid var(--line); }
+    .acl-rule.hit {
+      background: var(--bad-bg);
+      box-shadow: inset 0 0 0 1px var(--bad);
+    }
+    .acls-flag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--muted);
+    }
+    .acls-flag.enforced { color: var(--good); border-color: #9cd0ad; background: var(--good-bg); }
+    .acls-flag.permissive { color: var(--warn); border-color: #f1c27d; background: var(--warn-bg); }
+
+    /* ---------- attack banner ---------- */
+    .attack-banner {
+      display: none;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 2px solid var(--denied);
+      background: linear-gradient(180deg, var(--denied-bg), var(--bad-bg));
+      box-shadow: 0 2px 12px rgba(127,29,29,0.18);
+      animation: shake 320ms ease-in-out 1;
+      margin-bottom: 10px;
+    }
+    .attack-banner.show { display: grid; }
+    .attack-banner .stamp {
+      font-size: 22px;
+      font-weight: 900;
+      color: #fff;
+      background: var(--denied);
+      padding: 4px 12px;
+      border-radius: 6px;
+      letter-spacing: 0.12em;
+      transform: rotate(-3deg);
+    }
+    .attack-banner .body {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+    .attack-banner .body b { color: var(--denied); font-size: 14px; }
+    .attack-banner .body .reason {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      color: var(--ink-2);
+      overflow-wrap: anywhere;
+    }
+    .attack-banner .body .meta {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .attack-banner button {
+      background: transparent;
+      border: 1px solid var(--denied);
+      color: var(--denied);
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 12px;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      75% { transform: translateX(4px); }
+    }
+
+    /* ---------- telemetry footer ---------- */
+    .telemetry-row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .telemetry-row b {
+      color: var(--ink-2);
+      font-weight: 700;
+    }
+
+    /* ---------- toast/help ---------- */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+    }
+    .toast.show { opacity: 1; }
+
+    .help-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 60;
+    }
+    .help-overlay.show { display: flex; }
+    .help-overlay .panel {
+      max-width: 540px;
+      background: var(--panel);
+      color: var(--ink);
+      border-radius: 12px;
+      padding: 20px 24px;
+      border: 1px solid var(--line);
+    }
+    .help-overlay h3 { margin-top: 0; }
+    .help-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 14px;
+      font-size: 13px;
+    }
+    .help-grid kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11.5px;
+      color: var(--ink-2);
+    }
+
+    /* ---------- drawer (topic peek) ---------- */
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: min(560px, 92vw);
+      height: 100%;
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+      box-shadow: -8px 0 24px rgba(15,23,42,0.12);
+      transform: translateX(100%);
+      transition: transform 220ms ease;
+      z-index: 40;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .drawer header h3 { margin: 0; font-size: 14px; }
+    .drawer .body {
+      padding: 12px 16px 18px;
+      overflow-y: auto;
+    }
+    .drawer pre {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .drawer .ev-block + .ev-block { margin-top: 10px; }
+    .drawer h4 { margin: 14px 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .drawer .schema-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .drawer button.x { background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; font: inherit; }
+    .drawer button.x:hover { border-color: var(--bad); color: var(--bad); }
+
+    /* ---------- history strip ---------- */
+    footer.history {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 12px;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    footer.history .legend {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+    .history-strip {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .run-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      font-size: 11.5px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .run-chip:hover { border-color: var(--accent); }
+    .run-chip.active {
+      border-color: var(--accent);
+      background: #ecfdf5;
+      color: var(--accent);
+    }
+    .run-chip .o { font-style: normal; }
+    .run-chip .scn { font-family: inherit; font-weight: 700; color: var(--ink-2); }
+    .run-chip .dur { color: var(--muted); }
+
+    /* ---------- clean mode ---------- */
+    body.clean .stage-principal,
+    body.clean .run-pill code,
+    body.clean .principal .pname code,
+    body.clean .acl-rule code,
+    body.clean .telemetry-row,
+    body.clean .conn-light {
+      visibility: hidden;
+    }
+
+    /* ---------- responsive ---------- */
+    @media (max-width: 1280px) {
+      main.layout { grid-template-columns: 240px 1fr 340px; }
+    }
+    @media (max-width: 1100px) {
+      main.layout { grid-template-columns: 1fr; }
+      .evidence-split { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ============== TOP BAR ============== -->
+    <header class="topbar">
+      <div class="brand">
+        <h1>Questionnaire AI Demo</h1>
+        <span class="mode-badge live" id="modeBadge">LIVE</span>
+      </div>
+
+      <div class="run-pill">
+        <span>Run</span>
+        <code id="runIdLabel">—</code>
+        <span class="status-pill" id="statusPill">idle</span>
+      </div>
+
+      <div class="spacer"></div>
+
+      <div class="group conn-light" id="connLight" title="Backend dependency status">
+        <span class="conn-dot unknown" data-dep="kafka">Kafka</span>
+        <span class="conn-dot unknown" data-dep="schema_registry">Schemas</span>
+        <span class="conn-dot unknown" data-dep="codex">Codex</span>
+      </div>
+
+      <div class="group">
+        <label for="pacing">Pacing</label>
+        <select id="pacing">
+          <option value="realtime">realtime</option>
+          <option value="demo" selected>demo (600 ms)</option>
+          <option value="slow">slow (1500 ms)</option>
+        </select>
+      </div>
+
+      <div class="group">
+        <label>Mode</label>
+        <button class="tb" id="modeToggle" title="Toggle stage / clean room">stage</button>
+        <button class="tb" id="contrastToggle" title="Toggle high-contrast">◑</button>
+        <button class="tb" id="helpToggle" title="Show keyboard shortcuts (?)">?</button>
+      </div>
+
+      <div class="group">
+        <button class="tb danger" id="resetBtn" title="Reset visualisation (Shift = clear backend caches)">Reset</button>
+      </div>
+    </header>
+
+    <!-- ============== ATTACK BANNER + PIPELINE ============== -->
+    <div>
+      <div class="attack-banner" id="attackBanner">
+        <span class="stamp">DENIED</span>
+        <div class="body">
+          <b id="attackBannerTitle">svc-ai-drafter → write answer.reviewed.v1</b>
+          <div class="reason" id="attackBannerReason">—</div>
+          <div class="meta" id="attackBannerMeta"></div>
+        </div>
+        <button id="attackBannerClose">×</button>
+      </div>
+
+      <section class="pipeline-card">
+        <div class="pipeline-head">
+          <h2>Workflow Pipeline</h2>
+          <div class="pipeline-summary" id="pipelineSummary">Pick a scenario from the left to begin.</div>
+        </div>
+        <div class="pipeline" id="pipeline">
+          <!-- nodes injected by JS -->
+        </div>
+      </section>
+    </div>
+
+    <!-- ============== MAIN COLUMNS ============== -->
+    <main class="layout">
+      <!-- LEFT: scenarios + authority -->
+      <div class="col">
+        <section class="panel">
+          <h2>Scenarios <span class="acls-flag" id="pacingHint">demo</span></h2>
+          <div class="tiles" id="tiles"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Authority Boundary <span class="acls-flag" id="aclsFlag">—</span></h2>
+          <div class="boundary-table" id="boundaryTable">
+            <div class="evidence-empty">Loading ACLs…</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- CENTER: question + draft -->
+      <div class="col">
+        <section class="panel">
+          <h2>Current Question</h2>
+          <div class="question-card" id="questionCard">
+            <div class="evidence-empty">Run a scenario to load the question and evidence split.</div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Draft &amp; Outcome</h2>
+          <div class="draft-card empty" id="draftCard">
+            <div class="label"><span>Draft</span><span id="draftMetaLabel"></span></div>
+            <div class="draft-text" id="draftText">No draft yet.</div>
+            <div class="meta" id="draftChips"></div>
+            <div class="draft-result" id="draftResult" style="display:none"></div>
+          </div>
+          <div class="actions-row" style="margin-top:10px">
+            <button class="action primary" id="approveBtn" disabled>Approve Draft (A)</button>
+            <button class="action primary" id="exportBtn" disabled>Export Response (E)</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- RIGHT: ticker + telemetry -->
+      <div class="col">
+        <section class="panel">
+          <h2>Live Event Timeline <span class="chip" id="tickerCount">0</span></h2>
+          <div class="ticker" id="ticker">
+            <div class="ticker-empty">No events yet.</div>
+          </div>
+          <div class="telemetry-row" id="telemetry" style="margin-top:8px"></div>
+        </section>
+      </div>
+    </main>
+
+    <!-- ============== HISTORY STRIP ============== -->
+    <footer class="history">
+      <div class="legend">History</div>
+      <div class="history-strip" id="historyStrip"></div>
+    </footer>
+  </div>
+
+  <!-- ============== DRAWER (topic peek) ============== -->
+  <aside class="drawer" id="drawer">
+    <header>
+      <h3 id="drawerTitle">Topic Peek</h3>
+      <button class="x" id="drawerClose">Close (Esc)</button>
+    </header>
+    <div class="body" id="drawerBody"></div>
+  </aside>
+
+  <!-- ============== HELP ============== -->
+  <div class="help-overlay" id="helpOverlay">
+    <div class="panel">
+      <h3>Keyboard Shortcuts</h3>
+      <div class="help-grid">
+        <kbd>1–7</kbd><span>Run scenarios in left list</span>
+        <kbd>X</kbd><span>Direct AI Write attack (default target)</span>
+        <kbd>Shift+X</kbd><span>Direct AI Write attack against <code>answer.reviewed.v1</code></span>
+        <kbd>A</kbd><span>Approve draft</span>
+        <kbd>E</kbd><span>Export response</span>
+        <kbd>R</kbd><span>Reset UI visualisation</span>
+        <kbd>Shift+R</kbd><span>Reset backend run history + stream buffers</span>
+        <kbd>C</kbd><span>Toggle clean / stage mode</span>
+        <kbd>?</kbd><span>Show this help</span>
+        <kbd>Esc</kbd><span>Close help / drawer / banner</span>
+      </div>
+      <div style="margin-top:14px; font-size:12px; color:var(--muted)">
+        Click any pipeline node to peek the underlying Kafka topic.
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  // ============================================================
+  //  Constants & DOM refs
+  // ============================================================
+  const PIPELINE_LAYOUT = [
+    { col: [{ key: 'received', label: 'Received', glyph: '📥' }] },
+    { arrow: 'forward' },
+    { col: [{ key: 'prepared', label: 'Prepared', glyph: '🗂' }] },
+    { arrow: 'forward' },
+    { col: [{ key: 'ai_safe_evidence', label: 'AI-safe Evidence', glyph: '🔍' }] },
+    { arrow: 'forward' },
+    { col: [{ key: 'draft_proposed', label: 'Draft', glyph: '✏️' }] },
+    { arrow: 'fork' },
+    { fork: [
+        { key: 'draft_accepted', label: 'Accepted', glyph: '✓' },
+        { key: 'draft_rejected', label: 'Rejected', glyph: '✗' }
+    ] },
+    { arrow: 'forward' },
+    { col: [{ key: 'reviewed', label: 'Reviewed', glyph: '👤' }] },
+    { arrow: 'forward' },
+    { col: [{ key: 'response_ready', label: 'Response Ready', glyph: '📤' }] }
+  ];
+  const STAGE_TOPIC = {
+    received: 'questionnaire.received.v1',
+    prepared: 'questionnaire.questions.v1',
+    ai_safe_evidence: 'evidence.ai_safe.v1',
+    draft_proposed: 'answer.draft.proposed.v1',
+    draft_accepted: 'answer.draft.accepted.v1',
+    draft_rejected: 'answer.draft.rejected.v1',
+    reviewed: 'answer.reviewed.v1',
+    response_ready: 'questionnaire.response.ready.v1'
+  };
+  const SCENARIOS = [
+    { id: 'happy-path', key: '1', name: 'Happy Path', blurb: 'Codex drafts; guard accepts; pauses for review.', outcome: 'pause for review', cls: 'good', primary: true },
+    { id: 'prompt-injection', key: '2', name: 'Prompt Injection', blurb: 'Question carries override; guard rejects.', outcome: 'rejected', cls: 'bad' },
+    { id: 'restricted-evidence', key: '3', name: 'Restricted Evidence', blurb: 'Asks for sensitive data; gateway withholds.', outcome: 'rejected', cls: 'bad' },
+    { id: 'hallucinated-evidence', key: '4', name: 'Hallucinated Evidence', blurb: 'Cites evidence that does not exist.', outcome: 'rejected', cls: 'bad' },
+    { id: 'malformed-draft', key: '5', name: 'Malformed Draft', blurb: 'Schema-invalid draft from the model.', outcome: 'rejected', cls: 'bad' },
+    { id: 'unsupported-claim', key: '6', name: 'Unsupported Claim', blurb: 'Confident answer with no backing evidence.', outcome: 'rejected', cls: 'bad' },
+    { id: 'export-shortcut', key: '7', name: 'Export Shortcut', blurb: 'Asks to skip review; guard rejects.', outcome: 'rejected', cls: 'bad' }
+  ];
+  const STATUS_LABEL = {
+    not_started: 'idle',
+    running: 'running',
+    draft_proposed: 'drafting',
+    human_review_required: 'review required',
+    waiting_for_human_review: 'review required',
+    reviewed_pending_export: 'export ready',
+    export_ready: 'exported',
+    rejected: 'rejected',
+    denied: 'denied',
+    allowed: 'allowed (broker permissive!)',
+    failed: 'failed',
+    replay_gap: 'replay gap'
+  };
+  const STATUS_CLASS = {
+    running: 'running',
+    waiting_for_human_review: 'waiting',
+    human_review_required: 'waiting',
+    reviewed_pending_export: 'waiting',
+    export_ready: 'ready',
+    rejected: 'rejected',
+    denied: 'denied',
+    allowed: 'rejected',
+    failed: 'rejected',
+    replay_gap: 'replay'
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const dom = {
+    pipeline: $('pipeline'),
+    pipelineSummary: $('pipelineSummary'),
+    runIdLabel: $('runIdLabel'),
+    statusPill: $('statusPill'),
+    connLight: $('connLight'),
+    pacing: $('pacing'),
+    pacingHint: $('pacingHint'),
+    modeBadge: $('modeBadge'),
+    modeToggle: $('modeToggle'),
+    contrastToggle: $('contrastToggle'),
+    helpToggle: $('helpToggle'),
+    helpOverlay: $('helpOverlay'),
+    resetBtn: $('resetBtn'),
+    tiles: $('tiles'),
+    boundaryTable: $('boundaryTable'),
+    aclsFlag: $('aclsFlag'),
+    questionCard: $('questionCard'),
+    draftCard: $('draftCard'),
+    draftText: $('draftText'),
+    draftChips: $('draftChips'),
+    draftResult: $('draftResult'),
+    draftMetaLabel: $('draftMetaLabel'),
+    approveBtn: $('approveBtn'),
+    exportBtn: $('exportBtn'),
+    ticker: $('ticker'),
+    tickerCount: $('tickerCount'),
+    telemetry: $('telemetry'),
+    historyStrip: $('historyStrip'),
+    drawer: $('drawer'),
+    drawerTitle: $('drawerTitle'),
+    drawerBody: $('drawerBody'),
+    drawerClose: $('drawerClose'),
+    attackBanner: $('attackBanner'),
+    attackBannerTitle: $('attackBannerTitle'),
+    attackBannerReason: $('attackBannerReason'),
+    attackBannerMeta: $('attackBannerMeta'),
+    attackBannerClose: $('attackBannerClose'),
+    toast: $('toast')
+  };
+
+  // ============================================================
+  //  State
+  // ============================================================
+  const state = {
+    runId: null,
+    questionId: null,
+    scenarioId: null,
+    workflowStatus: 'not_started',
+    stages: {},        // key -> { count, lastEventId }
+    eventCount: 0,
+    eventsPinned: 0,
+    schemaCache: new Map(),
+    boundary: null,
+    sse: null,
+    sseRetryAt: 0,
+    pacing: 'demo',
+    runs: [],
+    activeAttack: false,
+    pendingDeniedStage: null
+  };
+
+  // ============================================================
+  //  Helpers
+  // ============================================================
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    }[c]));
+  }
+  function fmtElapsed(ms) {
+    if (ms == null) return '';
+    if (ms < 1000) return '+' + ms + 'ms';
+    return '+' + (ms / 1000).toFixed(1) + 's';
+  }
+  function setStatus(status) {
+    const cls = STATUS_CLASS[status] || '';
+    dom.statusPill.className = 'status-pill ' + cls;
+    dom.statusPill.textContent = STATUS_LABEL[status] || status || 'idle';
+  }
+  function toast(msg, ms = 1700) {
+    dom.toast.textContent = msg;
+    dom.toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => dom.toast.classList.remove('show'), ms);
+  }
+  async function api(path, options = {}) {
+    const res = await fetch(path, {
+      headers: { 'content-type': 'application/json', ...(options.headers || {}) },
+      ...options
+    });
+    let body = null;
+    const text = await res.text();
+    try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+    if (!res.ok) {
+      const detail = body && body.detail ? body.detail : (body || res.statusText);
+      const err = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+      err.status = res.status;
+      err.body = body;
+      throw err;
+    }
+    return body;
+  }
+
+  // ============================================================
+  //  Pipeline rendering
+  // ============================================================
+  function renderPipeline() {
+    dom.pipeline.innerHTML = '';
+    PIPELINE_LAYOUT.forEach((entry) => {
+      if (entry.arrow === 'forward') {
+        const a = document.createElement('div');
+        a.className = 'arrow';
+        a.textContent = '→';
+        dom.pipeline.appendChild(a);
+      } else if (entry.arrow === 'fork') {
+        const a = document.createElement('div');
+        a.className = 'arrow fork';
+        a.innerHTML = '<span>↗</span><span>↘</span>';
+        dom.pipeline.appendChild(a);
+      } else if (entry.col) {
+        const col = document.createElement('div');
+        col.className = 'stage-col';
+        entry.col.forEach((node) => col.appendChild(stageNode(node)));
+        dom.pipeline.appendChild(col);
+      } else if (entry.fork) {
+        const col = document.createElement('div');
+        col.className = 'stage-col fork';
+        entry.fork.forEach((node) => col.appendChild(stageNode(node)));
+        dom.pipeline.appendChild(col);
+      }
+    });
+  }
+  function stageNode({ key, label, glyph }) {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'stage';
+    el.dataset.key = key;
+    el.title = `Click to peek topic ${STAGE_TOPIC[key]}`;
+    el.innerHTML = `
+      <div class="stage-glyph" aria-hidden="true">${glyph}</div>
+      <div class="stage-label">${escapeHtml(label)}</div>
+      <div class="stage-principal" data-principal></div>
+      <div class="stage-meta">
+        <span class="stage-count" data-count>0</span>
+        <span class="schema-badge" data-schema>📐 v1</span>
+      </div>
+    `;
+    el.addEventListener('click', (ev) => {
+      if (ev.target.matches('[data-schema]')) {
+        showSchema(STAGE_TOPIC[key] + '-value');
+      } else {
+        peekTopic(key);
+      }
+    });
+    return el;
+  }
+  function paintStages() {
+    document.querySelectorAll('.stage').forEach((el) => {
+      const key = el.dataset.key;
+      const stage = state.stages[key] || { count: 0, lastEventId: null, principal: null };
+      el.querySelector('[data-count]').textContent = stage.count || 0;
+      el.querySelector('[data-principal]').textContent = stage.principal || '';
+      el.classList.toggle('touched', stage.count > 0 && key !== 'draft_rejected');
+      el.classList.toggle('bad-touched', stage.count > 0 && key === 'draft_rejected');
+      el.classList.toggle('warn-touched', key === 'draft_proposed' && stage.count > 0 && state.workflowStatus === 'human_review_required');
+      el.classList.toggle('denied', state.pendingDeniedStage === key);
+    });
+  }
+  function pulseStage(key) {
+    const el = document.querySelector(`.stage[data-key="${key}"]`);
+    if (!el) return;
+    el.classList.remove('pulse');
+    void el.offsetWidth;
+    el.classList.add('pulse');
+  }
+
+  // ============================================================
+  //  Tiles
+  // ============================================================
+  function renderTiles() {
+    dom.tiles.innerHTML = '';
+    SCENARIOS.forEach((s) => {
+      const t = document.createElement('button');
+      t.className = 'tile' + (s.primary ? ' primary' : '');
+      t.dataset.scenario = s.id;
+      t.innerHTML = `
+        <span class="key">${s.key}</span>
+        <span class="body">
+          <span class="name">${escapeHtml(s.name)}</span>
+          <span class="blurb">${escapeHtml(s.blurb)}</span>
+        </span>
+        <span class="outcome ${s.cls}">${escapeHtml(s.outcome)}</span>
+      `;
+      t.addEventListener('click', () => runScenario(s.id));
+      dom.tiles.appendChild(t);
+    });
+    // Direct AI write attack tile
+    const x = document.createElement('button');
+    x.className = 'tile danger';
+    x.dataset.scenario = 'direct-ai-write';
+    x.innerHTML = `
+      <span class="key">X</span>
+      <span class="body">
+        <span class="name">Direct AI Write</span>
+        <span class="blurb">AI principal tries to bypass review; broker should DENY.</span>
+      </span>
+      <span class="outcome deny">denied</span>
+    `;
+    x.addEventListener('click', () => runAttack(false));
+    dom.tiles.appendChild(x);
+  }
+
+  // ============================================================
+  //  Run lifecycle
+  // ============================================================
+  async function allocateRun(scenarioId, pacing) {
+    const r = await api('/demo/runs/allocate', {
+      method: 'POST',
+      body: JSON.stringify({ scenario_id: scenarioId, pacing })
+    });
+    return r.run_id;
+  }
+
+  function clearRunVisuals() {
+    state.stages = {};
+    state.questionId = null;
+    state.workflowStatus = 'not_started';
+    state.eventCount = 0;
+    state.eventsPinned = 0;
+    state.activeAttack = false;
+    state.pendingDeniedStage = null;
+    dom.ticker.innerHTML = '<div class="ticker-empty">No events yet.</div>';
+    dom.tickerCount.textContent = '0';
+    dom.telemetry.innerHTML = '';
+    dom.draftCard.classList.add('empty');
+    dom.draftText.textContent = 'No draft yet.';
+    dom.draftMetaLabel.textContent = '';
+    dom.draftChips.innerHTML = '';
+    dom.draftResult.style.display = 'none';
+    dom.draftResult.innerHTML = '';
+    dom.approveBtn.disabled = true;
+    dom.exportBtn.disabled = true;
+    dom.attackBanner.classList.remove('show');
+    document.querySelectorAll('.acl-rule.hit').forEach((r) => r.classList.remove('hit'));
+    paintStages();
+  }
+
+  async function runScenario(scenarioId) {
+    if (state.sse) { state.sse.close(); state.sse = null; }
+    clearRunVisuals();
+    state.scenarioId = scenarioId;
+    setStatus('running');
+    dom.pipelineSummary.textContent = `Running ${scenarioId}…`;
+
+    let runId;
+    try {
+      runId = await allocateRun(scenarioId, dom.pacing.value);
+    } catch (e) {
+      setStatus('failed');
+      toast('Allocate failed: ' + e.message);
+      return;
+    }
+    state.runId = runId;
+    dom.runIdLabel.textContent = runId;
+    openStream(runId);
+
+    const pacing = encodeURIComponent(dom.pacing.value);
+    const path = scenarioId === 'happy-path'
+      ? `/demo/run/${scenarioId}?run_id=${encodeURIComponent(runId)}&pacing=${pacing}&until=review`
+      : `/demo/run/${scenarioId}?run_id=${encodeURIComponent(runId)}&pacing=${pacing}`;
+
+    try {
+      await api(path, { method: 'POST' });
+    } catch (e) {
+      setStatus('failed');
+      toast('Run failed: ' + e.message);
+    }
+    refreshRuns();
+    loadQuestion();
+  }
+
+  async function runAttack(reviewedTarget) {
+    if (state.sse) { state.sse.close(); state.sse = null; }
+    clearRunVisuals();
+    state.scenarioId = 'direct-ai-write';
+    state.activeAttack = true;
+    setStatus('running');
+    const target = reviewedTarget ? 'answer.reviewed.v1' : 'questionnaire.response.ready.v1';
+    state.pendingDeniedStage = reviewedTarget ? 'reviewed' : 'response_ready';
+    dom.pipelineSummary.textContent = `svc-ai-drafter → ${target} (expecting deny)`;
+
+    const runId = `ui-direct-write-${Date.now()}`;
+    state.runId = runId;
+    dom.runIdLabel.textContent = runId;
+    openStream(runId);
+
+    const pacing = encodeURIComponent(dom.pacing.value);
+    const targetParam = encodeURIComponent(target);
+    const path = `/demo/attack/ai-direct-write/${encodeURIComponent(runId)}?pacing=${pacing}&target_topic=${targetParam}`;
+    let result = null;
+    try {
+      result = await api(path, { method: 'POST' });
+    } catch (e) {
+      setStatus('failed');
+      toast('Attack request failed: ' + e.message);
+      return;
+    }
+    showAttackBanner(result);
+    refreshRuns();
+  }
+
+  function showAttackBanner(result) {
+    const denied = result.denied;
+    const where = result.target_topic;
+    dom.attackBannerTitle.textContent = `${result.principal || 'svc-ai-drafter'} → ${result.attempted_operation || 'WRITE'} ${where}`;
+    dom.attackBannerReason.textContent = result.reason || (denied ? 'Authorization failed.' : 'Unexpectedly allowed.');
+    const meta = [];
+    if (result.broker_error_code) meta.push(`code: ${result.broker_error_code}`);
+    if (typeof result.duration_ms === 'number') meta.push(`took: ${result.duration_ms}ms`);
+    if (result.security_alert_event_id) meta.push(`alert: ${result.security_alert_event_id.slice(0, 8)}…`);
+    dom.attackBannerMeta.textContent = meta.join(' · ');
+    dom.attackBanner.classList.add('show');
+    setStatus(denied ? 'denied' : 'allowed');
+    state.pendingDeniedStage = denied ? (where === 'answer.reviewed.v1' ? 'reviewed' : 'response_ready') : null;
+    paintStages();
+    highlightAclRule(result.acl_rule);
+  }
+
+  // ============================================================
+  //  SSE streaming
+  // ============================================================
+  function openStream(runId, fromElapsedMs) {
+    const url = fromElapsedMs != null
+      ? `/demo/stream/${encodeURIComponent(runId)}?from_elapsed_ms=${fromElapsedMs}`
+      : `/demo/stream/${encodeURIComponent(runId)}`;
+    const sse = new EventSource(url);
+    state.sse = sse;
+    sse.addEventListener('stage', (ev) => onStage(parseSse(ev)));
+    sse.addEventListener('audit', (ev) => onAudit(parseSse(ev)));
+    sse.addEventListener('security', (ev) => onSecurity(parseSse(ev)));
+    sse.addEventListener('status', (ev) => onStatus(parseSse(ev)));
+    sse.addEventListener('telemetry', (ev) => onTelemetry(parseSse(ev)));
+    sse.addEventListener('draft_chunk', (ev) => onDraftChunk(parseSse(ev)));
+    sse.onerror = () => {
+      // EventSource auto-reconnects; if it stays errored we close after 5s.
+      clearTimeout(state.sseRetryAt);
+      state.sseRetryAt = setTimeout(() => {
+        if (sse.readyState === EventSource.CLOSED || sse.readyState === EventSource.CONNECTING) {
+          // already trying or closed; fall back to one-shot fetch
+          if (state.runId === runId) {
+            fallbackSnapshot(runId);
+          }
+        }
+      }, 5000);
+    };
+  }
+  function parseSse(ev) {
+    try { return JSON.parse(ev.data); } catch { return {}; }
+  }
+  function onStage(d) {
+    const key = d.stage_key;
+    if (!key) return;
+    const cur = state.stages[key] || { count: 0 };
+    cur.count = (cur.count || 0) + 1;
+    cur.lastEventId = d.event_id;
+    cur.principal = d.principal;
+    state.stages[key] = cur;
+    paintStages();
+    pulseStage(key);
+    appendTickerRow({
+      kind: 'stage',
+      when: fmtElapsed(d.elapsed_ms),
+      who: d.principal,
+      what: d.event_type,
+      detail: d.summary || d.topic
+    });
+    dom.pipelineSummary.textContent = d.summary || `${d.event_type} on ${d.topic}`;
+    // Draft populates from the stage summary; full text comes via state fetch.
+    if (key === 'draft_proposed') {
+      // optimistic — fill via /demo/state once the run is winding down
+      fetchAndApplyState(d.run_id);
+    }
+    if (key === 'draft_accepted' || key === 'draft_rejected' || key === 'reviewed' || key === 'response_ready') {
+      fetchAndApplyState(d.run_id);
+    }
+  }
+  function onAudit(d) {
+    appendTickerRow({
+      kind: 'audit',
+      when: fmtElapsed(d.elapsed_ms),
+      who: d.producer,
+      what: d.action + (d.outcome ? ' · ' + d.outcome : ''),
+      detail: (d.details && d.details.topic) || ''
+    });
+  }
+  function onSecurity(d) {
+    appendTickerRow({
+      kind: 'security',
+      when: fmtElapsed(d.elapsed_ms),
+      who: d.principal,
+      what: 'DENIED ' + (d.attempted_operation || 'op') + ' ' + (d.resource || ''),
+      detail: d.reason,
+      pinned: true
+    });
+  }
+  function onStatus(d) {
+    if (!d.status) return;
+    if (d.status === 'replay_gap') {
+      toast('Replay gap — falling back to snapshot.');
+      fallbackSnapshot(d.run_id);
+      setStatus('replay_gap');
+      return;
+    }
+    state.workflowStatus = d.status;
+    setStatus(d.status);
+    if (d.scenario_id) state.scenarioId = d.scenario_id;
+    if (d.question_id) state.questionId = d.question_id;
+    appendTickerRow({
+      kind: 'status',
+      when: fmtElapsed(d.elapsed_ms),
+      who: d.scenario_id || '',
+      what: 'status: ' + d.status,
+      detail: d.reason_codes ? d.reason_codes.join(', ') : (d.error || '')
+    });
+    if (d.status === 'human_review_required' || d.status === 'waiting_for_human_review') {
+      dom.approveBtn.disabled = false;
+    }
+    if (d.status === 'reviewed_pending_export') {
+      dom.approveBtn.disabled = true;
+      dom.exportBtn.disabled = false;
+    }
+    if (d.status === 'export_ready') {
+      dom.approveBtn.disabled = true;
+      dom.exportBtn.disabled = true;
+    }
+    if (d.status === 'rejected' || d.status === 'denied' || d.status === 'failed' || d.status === 'export_ready' || d.status === 'allowed') {
+      // sse will close after grace; refresh history
+      setTimeout(refreshRuns, 200);
+      setTimeout(() => fetchAndApplyState(d.run_id), 200);
+    }
+  }
+  function onTelemetry(d) {
+    const parts = [];
+    // Backend currently emits draft_ms (not codex_ms). Accept either.
+    const draftMs = d.draft_ms != null ? d.draft_ms : d.codex_ms;
+    if (draftMs != null) parts.push(`draft <b>${draftMs}ms</b>`);
+    if (d.codex_tokens != null) parts.push(`<b>${d.codex_tokens}</b> tok`);
+    if (d.guard_ms != null) parts.push(`guard <b>${d.guard_ms}ms</b>`);
+    if (d.review_ms != null) parts.push(`review <b>${d.review_ms}ms</b>`);
+    if (d.export_ms != null) parts.push(`export <b>${d.export_ms}ms</b>`);
+    dom.telemetry.innerHTML = parts.join(' · ');
+  }
+  function onDraftChunk(d) {
+    if (!d.delta) return;
+    if (dom.draftCard.classList.contains('empty')) {
+      dom.draftCard.classList.remove('empty');
+      dom.draftText.textContent = '';
+    }
+    dom.draftText.textContent += d.delta;
+  }
+
+  // ============================================================
+  //  Ticker
+  // ============================================================
+  function appendTickerRow({ kind, when, who, what, detail, pinned }) {
+    if (state.eventCount === 0) dom.ticker.innerHTML = '';
+    state.eventCount += 1;
+    dom.tickerCount.textContent = String(state.eventCount);
+    const row = document.createElement('div');
+    row.className = 'row ' + kind + (pinned ? ' pinned' : '');
+    row.innerHTML = `
+      <div class="when">${escapeHtml(when || '')}</div>
+      <div class="body">
+        <div class="head">
+          <span class="who">${escapeHtml(who || '')}</span>
+          <span class="what">${escapeHtml(what || '')}</span>
+        </div>
+        <div class="detail" title="${escapeHtml(detail || '')}">${escapeHtml(detail || '')}</div>
+      </div>
+    `;
+    if (pinned) {
+      // Pin denials at top, but keep at most a few
+      dom.ticker.insertBefore(row, dom.ticker.firstChild);
+      state.eventsPinned += 1;
+    } else {
+      dom.ticker.appendChild(row);
+      dom.ticker.scrollTop = dom.ticker.scrollHeight;
+    }
+  }
+
+  // ============================================================
+  //  State / question / boundary fetch
+  // ============================================================
+  async function fetchAndApplyState(runId) {
+    if (!runId || runId !== state.runId) return;
+    try {
+      const s = await api(`/demo/state/${encodeURIComponent(runId)}`);
+      // Update stage counts from authoritative snapshot
+      if (Array.isArray(s.stages)) {
+        s.stages.forEach((row) => {
+          const cur = state.stages[row.key] || {};
+          cur.count = row.count;
+          cur.lastEventId = row.last_event_id;
+          cur.principal = row.principal;
+          state.stages[row.key] = cur;
+        });
+      }
+      if (s.workflow_status) state.workflowStatus = s.workflow_status;
+      if (s.current_question_id && s.current_question_id !== state.questionId) {
+        state.questionId = s.current_question_id;
+        loadQuestion();
+      }
+      paintStages();
+      applyDraft(s);
+      if (s.telemetry) onTelemetry(s.telemetry);
+    } catch (_) { /* swallow */ }
+  }
+  function applyDraft(s) {
+    const draft = s.draft;
+    const accepted = s.accepted;
+    const reviewed = s.reviewed;
+    const response = s.response_ready;
+    if (draft && draft.draft_answer) {
+      dom.draftCard.classList.remove('empty');
+      dom.draftText.textContent = draft.draft_answer;
+      dom.draftMetaLabel.textContent = draft.answer_type
+        ? `${draft.answer_type} · conf ${(+draft.confidence).toFixed(2)}`
+        : '';
+      dom.draftChips.innerHTML = (draft.evidence_ids || [])
+        .map((id) => `<span class="chip">${escapeHtml(id)}</span>`)
+        .join('');
+    }
+    const result = [];
+    if (accepted) {
+      result.push(`<div><b>Guard:</b> accepted — review required</div>`);
+    }
+    if ((s.reason_codes || []).length) {
+      result.push(`<div><b>Guard:</b> rejected</div>
+        <div class="reason-chips">${s.reason_codes.map((r) => `<span class="reason-chip">${escapeHtml(r)}</span>`).join('')}</div>`);
+    }
+    if (reviewed) {
+      result.push(`<div><b>Review:</b> ${escapeHtml(reviewed.decision)} by ${escapeHtml(reviewed.reviewer_id || 'reviewer')}</div>`);
+    }
+    if (response) {
+      result.push(`<div><b>Export:</b> ${escapeHtml(response.export_summary || '')}</div>`);
+    }
+    if (result.length) {
+      dom.draftResult.style.display = '';
+      dom.draftResult.innerHTML = result.join('');
+    } else {
+      dom.draftResult.style.display = 'none';
+      dom.draftResult.innerHTML = '';
+    }
+    // Action buttons
+    dom.approveBtn.disabled = state.workflowStatus !== 'human_review_required';
+    dom.exportBtn.disabled = state.workflowStatus !== 'reviewed_pending_export';
+  }
+
+  async function loadQuestion() {
+    if (!state.questionId) return;
+    try {
+      const q = await api(`/demo/question/${encodeURIComponent(state.questionId)}`);
+      renderQuestion(q);
+    } catch (e) {
+      if (e.status !== 404) toast('Question fetch failed: ' + e.message);
+    }
+  }
+  function renderQuestion(q) {
+    const aiSafe = (q.ai_safe_evidence || []).map((ev) => `
+      <div class="ev-item">
+        <div class="ev-title">${escapeHtml(ev.title || ev.evidence_id)}</div>
+        <div class="ev-meta">${escapeHtml(ev.evidence_id)} · ${escapeHtml(ev.classification || '')}${ev.control_area ? ' · ' + escapeHtml(ev.control_area) : ''}</div>
+        ${ev.safe_summary ? `<div class="ev-summary">${escapeHtml(ev.safe_summary)}</div>` : ''}
+      </div>
+    `).join('') || '<div class="evidence-empty">No AI-safe evidence selected.</div>';
+    const withheld = (q.withheld_evidence || []).map((ev) => `
+      <div class="ev-item withheld">
+        <div class="ev-title">🔒 ${escapeHtml(ev.title || ev.evidence_id)}</div>
+        <div class="ev-meta">${escapeHtml(ev.evidence_id)} · ${escapeHtml(ev.classification || '')}</div>
+        <div class="ev-redaction">${escapeHtml(ev.redaction_label || 'withheld')}</div>
+      </div>
+    `).join('') || '<div class="evidence-empty">Nothing withheld.</div>';
+    dom.questionCard.innerHTML = `
+      <div class="qhead">
+        <span class="qid">${escapeHtml(q.question_id)}</span>
+        <span class="chip">${escapeHtml(q.control_area || '')}</span>
+        <span class="chip risk-${escapeHtml(q.risk_hint || 'normal')}">risk · ${escapeHtml(q.risk_hint || 'normal')}</span>
+        <span class="chip">${escapeHtml(q.scenario || '')}</span>
+      </div>
+      <div class="qtext">${escapeHtml(q.text)}</div>
+      <div class="evidence-split">
+        <div class="evidence-col">
+          <h3>AI sees <span class="acls-flag enforced">passed gateway</span></h3>
+          <div class="ev-list">${aiSafe}</div>
+        </div>
+        <div class="evidence-col withheld">
+          <h3>Withheld from AI <span class="acls-flag permissive">redacted</span></h3>
+          <div class="ev-list">${withheld}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadAuthorityBoundary() {
+    try {
+      const b = await api('/demo/authority-boundary');
+      state.boundary = b;
+      renderBoundary(b);
+    } catch (e) {
+      dom.boundaryTable.innerHTML = `<div class="evidence-empty">Authority boundary unavailable: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+  function renderBoundary(b) {
+    const enforced = b.acls_enforced;
+    dom.aclsFlag.className = 'acls-flag ' + (enforced ? 'enforced' : 'permissive');
+    dom.aclsFlag.textContent = enforced ? 'ACLs enforced' : 'permissive (rehearsal)';
+    dom.boundaryTable.innerHTML = (b.principals || []).map((p) => `
+      <div class="principal" data-principal="${escapeHtml(p.id)}">
+        <div class="pname"><b>${escapeHtml(p.label || p.id)}</b><code>${escapeHtml(p.id)}</code></div>
+        <div class="acl-rules">
+          ${(p.rules || []).map((r) => {
+            const permClass = r.permission === 'ALLOW' ? 'allow'
+              : r.permission === 'DENY' ? 'deny'
+              : 'no-allow-match';
+            return `<div class="acl-rule" data-topic="${escapeHtml(r.topic)}" data-op="${escapeHtml(r.operation)}" data-principal="${escapeHtml(p.id)}">
+              <code>${escapeHtml(r.topic)}</code>
+              <span class="acl-op">${escapeHtml(r.operation)}</span>
+              <span class="acl-perm ${permClass}">${escapeHtml(r.permission)}</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join('');
+  }
+  function highlightAclRule(rule) {
+    document.querySelectorAll('.acl-rule.hit').forEach((r) => r.classList.remove('hit'));
+    if (!rule) return;
+    const topic = rule.resource_name || rule.topic;
+    const op = rule.operation;
+    const principalRaw = rule.principal || '';
+    const principal = principalRaw.replace(/^User:/, '');
+    const sel = `.acl-rule[data-topic="${CSS.escape(topic || '')}"][data-op="${CSS.escape(op || '')}"]`;
+    const matches = document.querySelectorAll(sel);
+    matches.forEach((m) => {
+      if (!principal || m.dataset.principal === principal) m.classList.add('hit');
+    });
+  }
+
+  // ============================================================
+  //  Drawer (topic peek + schema)
+  // ============================================================
+  async function peekTopic(stageKey) {
+    const topic = STAGE_TOPIC[stageKey];
+    if (!topic || !state.runId) {
+      toast('Pick a run first.');
+      return;
+    }
+    dom.drawerTitle.textContent = `Topic · ${topic}`;
+    dom.drawerBody.innerHTML = '<div class="evidence-empty">Loading…</div>';
+    dom.drawer.classList.add('open');
+    try {
+      const r = await api(`/demo/topics/${encodeURIComponent(topic)}/events?run_id=${encodeURIComponent(state.runId)}&limit=20`);
+      const meta = `<div class="schema-meta">Subject <code>${escapeHtml(r.schema_subject)}</code> · v${escapeHtml(r.schema_version)} · ${r.events.length} event(s) for run.</div>`;
+      const blocks = r.events.length === 0
+        ? '<div class="evidence-empty">No events on this topic for the current run.</div>'
+        : r.events.map((ev) => `
+            <div class="ev-block">
+              <h4>${escapeHtml(ev.event_id.slice(0, 8))} · ${escapeHtml(ev.producer)} · ${escapeHtml(ev.occurred_at)}</h4>
+              <pre>${escapeHtml(JSON.stringify(ev.payload, null, 2))}</pre>
+            </div>
+          `).join('');
+      dom.drawerBody.innerHTML = meta + blocks;
+    } catch (e) {
+      dom.drawerBody.innerHTML = `<div class="evidence-empty">Topic peek failed: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+  async function showSchema(subject) {
+    if (state.schemaCache.has(subject)) {
+      renderSchemaDrawer(subject, state.schemaCache.get(subject));
+      return;
+    }
+    dom.drawerTitle.textContent = `Schema · ${subject}`;
+    dom.drawerBody.innerHTML = '<div class="evidence-empty">Loading schema…</div>';
+    dom.drawer.classList.add('open');
+    try {
+      const s = await api(`/demo/schemas/${encodeURIComponent(subject)}`);
+      state.schemaCache.set(subject, s);
+      renderSchemaDrawer(subject, s);
+    } catch (e) {
+      dom.drawerBody.innerHTML = `<div class="evidence-empty">Schema unavailable: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+  function renderSchemaDrawer(subject, s) {
+    // Backend ships the schema as a structured object on `s.schema` and a
+    // pre-serialised display string on `s.schema_text`. Prefer the text;
+    // otherwise pretty-print the object; fall back to whatever's there.
+    let pretty;
+    if (typeof s.schema_text === 'string' && s.schema_text.length) {
+      pretty = s.schema_text;
+    } else if (s.schema && typeof s.schema === 'object') {
+      try { pretty = JSON.stringify(s.schema, null, 2); }
+      catch { pretty = String(s.schema); }
+    } else if (typeof s.schema === 'string') {
+      try { pretty = JSON.stringify(JSON.parse(s.schema), null, 2); }
+      catch { pretty = s.schema; }
+    } else {
+      pretty = '(schema unavailable)';
+    }
+    dom.drawerBody.innerHTML = `
+      <div class="schema-meta">${escapeHtml(s.schema_type || 'AVRO')} · v${escapeHtml(s.version)}</div>
+      <pre>${escapeHtml(pretty)}</pre>
+    `;
+  }
+
+  // ============================================================
+  //  Reviews / exports / approvals
+  // ============================================================
+  async function approveDraft() {
+    if (!state.runId || !state.questionId) return toast('No active draft to approve.');
+    const pacing = encodeURIComponent(dom.pacing.value);
+    try {
+      await api(`/demo/review/${encodeURIComponent(state.runId)}/${encodeURIComponent(state.questionId)}?pacing=${pacing}`, { method: 'POST' });
+    } catch (e) {
+      toast('Approve failed: ' + e.message);
+    }
+  }
+  async function exportResponse() {
+    if (!state.runId) return toast('No active run to export.');
+    const pacing = encodeURIComponent(dom.pacing.value);
+    try {
+      await api(`/demo/export/${encodeURIComponent(state.runId)}?pacing=${pacing}`, { method: 'POST' });
+    } catch (e) {
+      toast('Export failed: ' + e.message);
+    }
+  }
+
+  // ============================================================
+  //  History
+  // ============================================================
+  async function refreshRuns() {
+    try {
+      const r = await api('/demo/runs');
+      state.runs = r.runs || [];
+      renderHistory();
+    } catch (_) {}
+  }
+  function renderHistory() {
+    if (!state.runs.length) {
+      dom.historyStrip.innerHTML = '<span class="evidence-empty">No runs yet.</span>';
+      return;
+    }
+    dom.historyStrip.innerHTML = state.runs.map((r) => {
+      const icon = r.denied ? '🔒' : (r.final_status === 'export_ready' ? '✓' : (r.final_status === 'rejected' ? '⚠' : '·'));
+      const dur = r.duration_ms != null ? Math.round(r.duration_ms) + 'ms' : '';
+      const active = state.runId === r.run_id ? ' active' : '';
+      const short = r.run_id.split('-').slice(-1)[0].slice(0, 6);
+      return `<button class="run-chip${active}" data-run="${escapeHtml(r.run_id)}" title="${escapeHtml(r.run_id)}">
+        <span class="o">${icon}</span>
+        <span class="scn">${escapeHtml(r.scenario_id)}</span>
+        <span class="dur">${escapeHtml(dur)}</span>
+        <span style="color:var(--muted)">·</span>
+        <span>${escapeHtml(short)}</span>
+      </button>`;
+    }).join('');
+    dom.historyStrip.querySelectorAll('.run-chip').forEach((el) => {
+      el.addEventListener('click', () => loadHistoricalRun(el.dataset.run));
+    });
+  }
+  async function loadHistoricalRun(runId) {
+    if (state.sse) { state.sse.close(); state.sse = null; }
+    clearRunVisuals();
+    state.runId = runId;
+    dom.runIdLabel.textContent = runId;
+    dom.pipelineSummary.textContent = `↺ replay · ${runId}`;
+    setStatus('replay_gap');
+    try {
+      const [s, a] = await Promise.all([
+        api(`/demo/state/${encodeURIComponent(runId)}`),
+        api(`/demo/audit/${encodeURIComponent(runId)}`)
+      ]);
+      // stages
+      (s.stages || []).forEach((row) => {
+        state.stages[row.key] = { count: row.count, lastEventId: row.last_event_id, principal: row.principal };
+      });
+      state.workflowStatus = s.workflow_status || 'not_started';
+      state.questionId = s.current_question_id || null;
+      paintStages();
+      applyDraft(s);
+      setStatus(state.workflowStatus);
+      if (s.telemetry) onTelemetry(s.telemetry);
+      if (state.questionId) loadQuestion();
+      // ticker (structured events)
+      (a.events || []).forEach((ev) => {
+        if (ev.kind === 'audit') {
+          appendTickerRow({
+            kind: 'audit',
+            when: fmtElapsed(ev.elapsed_ms),
+            who: ev.producer,
+            what: ev.action + (ev.outcome ? ' · ' + ev.outcome : ''),
+            detail: ev.topic || ''
+          });
+        } else if (ev.kind === 'security') {
+          appendTickerRow({
+            kind: 'security',
+            when: fmtElapsed(ev.elapsed_ms),
+            who: ev.principal,
+            what: 'DENIED ' + (ev.attempted_operation || '') + ' ' + (ev.resource || ''),
+            detail: ev.reason,
+            pinned: true
+          });
+        }
+      });
+      renderHistory();
+    } catch (e) {
+      toast('Replay failed: ' + e.message);
+    }
+  }
+
+  async function fallbackSnapshot(runId) {
+    await fetchAndApplyState(runId);
+    try {
+      const a = await api(`/demo/audit/${encodeURIComponent(runId)}`);
+      (a.events || []).forEach((ev) => {
+        if (ev.kind === 'audit') onAudit({ ...ev });
+        else if (ev.kind === 'security') onSecurity({ ...ev });
+      });
+    } catch (_) {}
+  }
+
+  // ============================================================
+  //  Connection / health
+  // ============================================================
+  async function pollConnection() {
+    try {
+      const h = await api('/health/connection');
+      // Backend returns { dependencies: { kafka: {ok, detail}, ... }, ... };
+      // tolerate either shape just in case (newer runtimes might flatten).
+      const deps = (h && h.dependencies) || h || {};
+      ['kafka', 'schema_registry', 'codex'].forEach((dep) => {
+        const dot = dom.connLight.querySelector(`[data-dep="${dep}"]`);
+        if (!dot) return;
+        const entry = deps[dep] || {};
+        const ok = !!entry.ok;
+        dot.classList.remove('ok', 'bad', 'unknown');
+        dot.classList.add(ok ? 'ok' : 'bad');
+        dot.title = entry.detail || '';
+      });
+    } catch {
+      dom.connLight.querySelectorAll('.conn-dot').forEach((d) => {
+        d.classList.remove('ok'); d.classList.add('bad');
+      });
+    }
+  }
+  setInterval(pollConnection, 5000);
+
+  // ============================================================
+  //  Top bar interactions
+  // ============================================================
+  dom.pacing.addEventListener('change', () => {
+    dom.pacingHint.textContent = dom.pacing.value;
+    localStorage.setItem('v2.pacing', dom.pacing.value);
+  });
+  dom.modeToggle.addEventListener('click', () => {
+    document.body.classList.toggle('clean');
+    const isClean = document.body.classList.contains('clean');
+    dom.modeToggle.textContent = isClean ? 'clean' : 'stage';
+    localStorage.setItem('v2.clean', isClean ? '1' : '0');
+  });
+  dom.contrastToggle.addEventListener('click', () => {
+    document.body.classList.toggle('contrast');
+    localStorage.setItem('v2.contrast', document.body.classList.contains('contrast') ? '1' : '0');
+  });
+  dom.helpToggle.addEventListener('click', () => dom.helpOverlay.classList.toggle('show'));
+  dom.helpOverlay.addEventListener('click', (ev) => {
+    if (ev.target === dom.helpOverlay) dom.helpOverlay.classList.remove('show');
+  });
+  dom.drawerClose.addEventListener('click', () => dom.drawer.classList.remove('open'));
+  dom.attackBannerClose.addEventListener('click', () => dom.attackBanner.classList.remove('show'));
+  dom.approveBtn.addEventListener('click', approveDraft);
+  dom.exportBtn.addEventListener('click', exportResponse);
+  dom.resetBtn.addEventListener('click', (ev) => resetAll(ev.shiftKey));
+
+  async function resetAll(deep) {
+    const inFlight = state.runId && (state.workflowStatus === 'running'
+      || state.workflowStatus === 'draft_proposed'
+      || state.workflowStatus === 'human_review_required'
+      || state.workflowStatus === 'reviewed_pending_export');
+    if (inFlight && !confirm('A run is in progress. Reset visualisation now?')) return;
+    if (state.sse) { state.sse.close(); state.sse = null; }
+    state.runId = null;
+    dom.runIdLabel.textContent = '—';
+    clearRunVisuals();
+    setStatus('not_started');
+    dom.pipelineSummary.textContent = 'Pick a scenario from the left to begin.';
+    if (deep) {
+      if (!confirm('Also clear backend run history and stream buffers?')) return;
+      try {
+        const r = await api('/demo/reset', { method: 'POST' });
+        toast(`Backend reset: ${r.cleared_runs} runs, ${r.cleared_streams} streams.`);
+      } catch (e) {
+        toast('Backend reset failed: ' + e.message);
+      }
+      await refreshRuns();
+    }
+  }
+
+  // ============================================================
+  //  Keyboard
+  // ============================================================
+  document.addEventListener('keydown', (ev) => {
+    if (ev.target.matches('input, textarea, select')) return;
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if (ev.key === 'Escape') {
+      dom.drawer.classList.remove('open');
+      dom.helpOverlay.classList.remove('show');
+      dom.attackBanner.classList.remove('show');
+      return;
+    }
+    if (ev.key === '?') { dom.helpOverlay.classList.toggle('show'); return; }
+    if (ev.key === 'A' || ev.key === 'a') { approveDraft(); return; }
+    if (ev.key === 'E' || ev.key === 'e') { exportResponse(); return; }
+    if (ev.key === 'C' || ev.key === 'c') { dom.modeToggle.click(); return; }
+    if (ev.key === 'X') { runAttack(true); return; }
+    if (ev.key === 'x') { runAttack(false); return; }
+    if (ev.key === 'R' && ev.shiftKey) { resetAll(true); return; }
+    if (ev.key === 'r') { resetAll(false); return; }
+    const tile = SCENARIOS.find((s) => s.key === ev.key);
+    if (tile) { runScenario(tile.id); return; }
+  });
+
+  // ============================================================
+  //  Init
+  // ============================================================
+  function init() {
+    // restore prefs
+    const pacing = localStorage.getItem('v2.pacing');
+    if (pacing) dom.pacing.value = pacing;
+    dom.pacingHint.textContent = dom.pacing.value;
+    if (localStorage.getItem('v2.clean') === '1') {
+      document.body.classList.add('clean');
+      dom.modeToggle.textContent = 'clean';
+    }
+    if (localStorage.getItem('v2.contrast') === '1') {
+      document.body.classList.add('contrast');
+    }
+    renderPipeline();
+    paintStages();
+    renderTiles();
+    setStatus('not_started');
+    loadAuthorityBoundary();
+    refreshRuns();
+    pollConnection();
+  }
+  init();
+  </script>
+</body>
+</html>
