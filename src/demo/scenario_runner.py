@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from time import perf_counter
@@ -26,7 +27,9 @@ from demo.contracts import (
 from demo.fixtures import load_evidence_library, load_questionnaire
 from demo.kafka_io import KafkaClientError, consume_events, produce_event
 from demo.model.codex_client import CodexCliClient
+from demo.observability import make_agent_trace
 from demo.services.ai_drafter import DraftProvider, generate_draft
+from demo.services.agentic_drafter import AgentProvider, ToolCallRecord, run_agentic_draft
 from demo.services.audit import build_audit_event, render_timeline
 from demo.services.evidence_gateway import make_ai_safe_evidence, select_evidence
 from demo.services.ingest import build_questionnaire_received
@@ -82,6 +85,8 @@ class HappyPathResult:
     reviewed_answer: ReviewedAnswer
     response_ready: ResponseReady
     audit_events: list[AuditEvent]
+    agent_tool_calls: list[ToolCallRecord] = field(default_factory=list)
+    agent_trace_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -93,6 +98,8 @@ class ReviewPauseResult:
     proposed_answer: ProposedAnswer
     accepted_draft: AcceptedDraft
     audit_events: list[AuditEvent]
+    agent_tool_calls: list[ToolCallRecord] = field(default_factory=list)
+    agent_trace_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +109,14 @@ class EvidenceReadyResult:
     prepared_question: PreparedQuestion
     ai_safe_evidence: list[AiSafeEvidence]
     audit_events: list[AuditEvent]
+
+
+@dataclass(frozen=True)
+class AgentDraftRunResult:
+    proposed_answer: ProposedAnswer
+    ai_safe_evidence: list[AiSafeEvidence]
+    tool_calls: list[ToolCallRecord]
+    trace_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -319,6 +334,117 @@ def draft_answer_for_question(
     return proposed
 
 
+def draft_answer_agentically_for_question(
+    run_id: str,
+    question_id: str,
+    provider: AgentProvider | None = None,
+    *,
+    context: ScenarioRunContext | None = None,
+) -> AgentDraftRunResult:
+    prepared = _latest_question(
+        consume_events(
+            "questionnaire.questions.v1",
+            run_id=run_id,
+            timeout_seconds=10,
+            principal="svc-ai-drafter",
+        ),
+        question_id,
+        "questionnaire.questions.v1",
+    )
+    internal_evidence = consume_events(
+        "evidence.internal.v1",
+        run_id=run_id,
+        timeout_seconds=10,
+        principal="svc-evidence-gateway",
+    )
+    library = {
+        "evidence": [
+            event.model_dump(mode="json", exclude=ENVELOPE_FIELDS)
+            for event in internal_evidence
+        ]
+    }
+
+    def _publish_ai_safe(event: AiSafeEvidence) -> None:
+        _produce(
+            "evidence.ai_safe.v1",
+            event,
+            principal="svc-evidence-gateway",
+            context=context,
+            summary=f"Agent inspected AI-safe evidence {event.evidence_id}.",
+        )
+
+    def _publish_tool_call(record: ToolCallRecord) -> None:
+        _audit(
+            run_id=run_id,
+            source_event_id=prepared.event_id,
+            producer="svc-ai-drafter",
+            action=f"agent.{record.tool_name}",
+            outcome="observed",
+            details={
+                "turn": record.turn,
+                "tool_index": record.tool_index,
+                "tool_name": record.tool_name,
+                "input_json": json.dumps(record.input, sort_keys=True),
+                "observation_json": json.dumps(record.observation, sort_keys=True),
+            },
+            context=context,
+        )
+
+    started = perf_counter()
+    with make_agent_trace(
+        run_id=run_id,
+        scenario_id=context.scenario_id if context else "happy-path",
+        question_id=question_id,
+    ) as trace:
+        result = run_agentic_draft(
+            prepared,
+            library,
+            provider or CodexCliClient(),
+            on_tool_call=_publish_tool_call,
+            on_ai_safe_evidence=_publish_ai_safe,
+            tracer=trace,
+        )
+        trace.update_output(
+            answer_type=result.proposed_answer.answer_type.value,
+            evidence_ids=result.proposed_answer.evidence_ids,
+            tool_call_count=result.tool_call_count,
+        )
+    proposed = result.proposed_answer
+    _produce(
+        "answer.draft.proposed.v1",
+        proposed,
+        principal="svc-ai-drafter",
+        context=context,
+        summary=f"Agent drafted answer for {question_id} after {result.tool_call_count} tool calls.",
+    )
+    _audit(
+        run_id=run_id,
+        source_event_id=proposed.event_id,
+        producer="svc-ai-drafter",
+        action="drafted",
+        outcome=proposed.answer_type.value,
+        details={
+            "topic": "answer.draft.proposed.v1",
+            "question_id": question_id,
+            "evidence_count": len(result.ai_safe_evidence),
+            "agent_tool_calls": result.tool_call_count,
+            "agent_trace_url": result.trace_url,
+        },
+        context=context,
+    )
+    _record_telemetry(
+        context,
+        draft_ms=_elapsed_ms(started),
+        agent_tool_calls=result.tool_call_count,
+    )
+    return AgentDraftRunResult(
+        proposed_answer=proposed,
+        ai_safe_evidence=result.ai_safe_evidence,
+        tool_calls=result.tool_calls,
+        trace_url=result.trace_url,
+    )
+
+
 def guard_draft_for_question(
     run_id: str,
     question_id: str,
@@ -465,7 +591,7 @@ def render_audit_for_run(run_id: str) -> str:
 
 def run_happy_path(
     run_id: str | None = None,
-    provider: DraftProvider | None = None,
+    provider: AgentProvider | None = None,
     *,
     context: ScenarioRunContext | None = None,
 ) -> HappyPathResult:
@@ -482,12 +608,14 @@ def run_happy_path(
         reviewed_answer=reviewed,
         response_ready=response_ready,
         audit_events=collect_audit_events(paused.run_id),
+        agent_tool_calls=paused.agent_tool_calls,
+        agent_trace_url=paused.agent_trace_url,
     )
 
 
 def run_happy_path_until_review(
     run_id: str | None = None,
-    provider: DraftProvider | None = None,
+    provider: AgentProvider | None = None,
     *,
     context: ScenarioRunContext | None = None,
 ) -> ReviewPauseResult:
@@ -497,8 +625,7 @@ def run_happy_path_until_review(
     ingest_questionnaire_event(run, context=context)
     prepared_questions = prepare_questions_for_run(run, context=context)
     prepared = next(item for item in prepared_questions if item.question_id == question_id)
-    ai_safe = produce_ai_safe_evidence_for_question(run, question_id, context=context)
-    proposed = draft_answer_for_question(run, question_id, provider, context=context)
+    agent_result = draft_answer_agentically_for_question(run, question_id, provider, context=context)
     guarded = guard_draft_for_question(run, question_id, context=context)
     if not isinstance(guarded, AcceptedDraft):
         raise ValueError(f"Happy path draft was rejected: {guarded.reason_codes}")
@@ -515,10 +642,12 @@ def run_happy_path_until_review(
         run_id=run,
         question_id=question_id,
         prepared_question=prepared,
-        ai_safe_evidence=ai_safe,
-        proposed_answer=proposed,
+        ai_safe_evidence=agent_result.ai_safe_evidence,
+        proposed_answer=agent_result.proposed_answer,
         accepted_draft=guarded,
         audit_events=collect_audit_events(run),
+        agent_tool_calls=agent_result.tool_calls,
+        agent_trace_url=agent_result.trace_url,
     )
 
 

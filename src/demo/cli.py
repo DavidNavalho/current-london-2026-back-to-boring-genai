@@ -195,6 +195,7 @@ def run_happy_path_command(
             typer.echo(f"Run: {result.run_id}")
             typer.echo(f"Q-001 prepared: {result.prepared_question.control_area}")
             typer.echo(f"Evidence safe for AI: {evidence_ids}")
+            typer.echo(f"Agent tool calls: {len(result.agent_tool_calls)}")
             typer.echo(
                 "Codex draft: "
                 f"{result.proposed_answer.answer_type.value}, confidence {result.proposed_answer.confidence:.2f}"
@@ -215,6 +216,7 @@ def run_happy_path_command(
     typer.echo(f"Run: {result.run_id}")
     typer.echo(f"Q-001 prepared: {result.prepared_question.control_area}")
     typer.echo(f"Evidence safe for AI: {evidence_ids}")
+    typer.echo(f"Agent tool calls: {len(result.agent_tool_calls)}")
     typer.echo(
         "Codex draft: "
         f"{result.proposed_answer.answer_type.value}, confidence {result.proposed_answer.confidence:.2f}"

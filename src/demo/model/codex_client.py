@@ -4,12 +4,19 @@ import json
 import shutil
 import subprocess
 import tempfile
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeVar
 
+from pydantic import BaseModel
 from pydantic import ValidationError
 
+from demo.services.agentic_drafter import AgentAction
 from demo.services.ai_drafter import DraftModelOutput
+
+
+StructuredOutput = TypeVar("StructuredOutput", bound=BaseModel)
 
 
 class CodexUnavailable(RuntimeError):
@@ -43,13 +50,27 @@ class CodexCliClient:
         return output
 
     def generate(self, prompt: str) -> DraftModelOutput:
+        return self.generate_structured(prompt, DraftModelOutput)
+
+    def generate_action(self, prompt: str) -> AgentAction:
+        return self.generate_structured(prompt, AgentAction)
+
+    def generate_structured(
+        self,
+        prompt: str,
+        output_model: type[StructuredOutput],
+    ) -> StructuredOutput:
         self._assert_available_and_authenticated()
         with tempfile.TemporaryDirectory(prefix="questionnaire-codex-") as tmpdir:
             tmp_path = Path(tmpdir)
             schema_path = tmp_path / "draft-output.schema.json"
             output_path = tmp_path / "last-message.json"
             schema_path.write_text(
-                json.dumps(DraftModelOutput.model_json_schema(), indent=2, sort_keys=True),
+                json.dumps(
+                    _codex_response_schema(output_model.model_json_schema()),
+                    indent=2,
+                    sort_keys=True,
+                ),
                 encoding="utf-8",
             )
 
@@ -88,7 +109,7 @@ class CodexCliClient:
             raw_response = output_path.read_text(encoding="utf-8") if output_path.exists() else result.stdout
             try:
                 payload = _parse_json_object(raw_response)
-                return DraftModelOutput.model_validate(payload)
+                return output_model.model_validate(payload)
             except (json.JSONDecodeError, ValidationError, ValueError) as exc:
                 raise CodexExecutionError(
                     _format_failure(f"Codex returned invalid structured output: {exc}", raw_response)
@@ -133,6 +154,25 @@ def _parse_json_object(raw: str) -> dict:
         if start == -1 or end == -1 or end <= start:
             raise
         return json.loads(stripped[start : end + 1])
+
+
+def _codex_response_schema(schema: dict) -> dict:
+    normalized = deepcopy(schema)
+    _normalize_object_schema(normalized)
+    return normalized
+
+
+def _normalize_object_schema(node) -> None:
+    if isinstance(node, dict):
+        node.pop("default", None)
+        properties = node.get("properties")
+        if isinstance(properties, dict):
+            node["required"] = list(properties)
+        for value in node.values():
+            _normalize_object_schema(value)
+    elif isinstance(node, list):
+        for item in node:
+            _normalize_object_schema(item)
 
 
 def _format_failure(message: str, output: str) -> str:

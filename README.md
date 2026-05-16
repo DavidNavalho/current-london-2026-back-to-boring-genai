@@ -4,9 +4,9 @@ Conference demo for **Back to the Boring: GenAI That Ships**.
 
 The demo shows a Kafka-governed questionnaire workflow where every meaningful
 transition goes through Kafka, every event is Avro-governed through Schema
-Registry, Codex drafts answers, a policy guard validates them, a human review
-event is required before export, and Kafka ACLs prevent the AI drafter from
-bypassing review.
+Registry, Codex investigates evidence through a bounded agent loop before
+drafting, a policy guard validates the draft, a human review event is required
+before export, and Kafka ACLs prevent the AI drafter from bypassing review.
 
 ## Prerequisites
 
@@ -38,6 +38,22 @@ consumer groups, and the audit/security events while the demo runs. AKHQ is an
 operator console in this local stack; it connects to the internal Docker broker
 listener and Schema Registry.
 
+Langfuse can also run locally as an opt-in Compose profile:
+
+```bash
+make observability-up
+make observability-health
+```
+
+Open Langfuse at `http://localhost:3000`.
+
+Local demo credentials:
+
+- Email: `demo@example.test`
+- Password: `demo-password`
+- Public key: `pk-lf-demo-local`
+- Secret key: `sk-lf-demo-local`
+
 To reset everything:
 
 ```bash
@@ -63,6 +79,12 @@ make install
 .venv/bin/demo attack ai-direct-write --run-id rehearsal-attack
 .venv/bin/demo audit --run-id rehearsal-attack
 ```
+
+The happy path is intentionally agentic but bounded. Codex must make at least
+two evidence tool calls and no more than four before it can draft. The demo uses
+deterministic synthetic evidence search and an AI-safe evidence inspection tool,
+so Codex can choose what to inspect while the evidence gateway still controls
+what content is exposed.
 
 Useful command-line fallback for a live demo:
 
@@ -163,22 +185,50 @@ DEMO_RUN_CODEX_TESTS=1 .venv/bin/python -m pytest tests/scenario/test_happy_path
 DEMO_RUN_CODEX_TESTS=1 .venv/bin/python -m pytest tests/api -q -m codex
 ```
 
+Recommended rehearsal for the agent loop:
+
+```bash
+.venv/bin/demo run happy-path --until review --run-id rehearsal-agent-1
+.venv/bin/demo run happy-path --until review --run-id rehearsal-agent-2
+.venv/bin/demo run happy-path --until review --run-id rehearsal-agent-3
+```
+
+Each run should report `Agent tool calls: 2`, `Policy guard: accepted`, and
+`Human Review: required`.
+
+Optional local Langfuse tracing is supported for the agent loop. Start the local
+Langfuse stack, then run the API with tracing enabled:
+
+```bash
+make observability-up
+make observability-health
+make serve-traced
+```
+
+`serve-traced` points the backend at `http://localhost:3000` with the local demo
+project keys. Each run records the Codex turns and governed evidence tool calls
+as Langfuse observations. Without those environment variables, tracing is a
+no-op and the demo behaves the same way.
+
 ## Rehearsal Checklist
 
 1. `make down`
 2. `make up`
 3. `make runtime-health`
 4. `make bootstrap-topics bootstrap-schemas bootstrap-acls`
-5. `.venv/bin/demo codex preflight`
-6. Open AKHQ at `http://localhost:8080`
-7. `.venv/bin/demo run happy-path --until review`
-8. `.venv/bin/demo review approve Q-001 --run-id <run_id>`
-9. `.venv/bin/demo export --run-id <run_id>`
-10. `.venv/bin/demo attack ai-direct-write --run-id rehearsal-attack`
-11. `.venv/bin/demo audit --run-id rehearsal-attack`
-12. `make test-acl`
-13. `make serve`
-14. Open `http://localhost:8000/v3`, run Useful Path, approve the draft,
+5. `make observability-up`
+6. `make observability-health`
+7. `.venv/bin/demo codex preflight`
+8. Open AKHQ at `http://localhost:8080`
+9. Open Langfuse at `http://localhost:3000`
+10. `.venv/bin/demo run happy-path --until review`
+11. `.venv/bin/demo review approve Q-001 --run-id <run_id>`
+12. `.venv/bin/demo export --run-id <run_id>`
+13. `.venv/bin/demo attack ai-direct-write --run-id rehearsal-attack`
+14. `.venv/bin/demo audit --run-id rehearsal-attack`
+15. `make test-acl`
+16. `make serve-traced`
+17. Open `http://localhost:8000/v3`, run Useful Path, approve the draft,
     export the response, and test AI Direct Write.
 
 ## Not Production
