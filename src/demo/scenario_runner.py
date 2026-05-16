@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from time import perf_counter
@@ -30,6 +31,15 @@ from demo.model.codex_client import CodexCliClient
 from demo.observability import make_agent_trace
 from demo.services.ai_drafter import DraftProvider, generate_draft
 from demo.services.agentic_drafter import AgentProvider, ToolCallRecord, run_agentic_draft
+from demo.services.agent_swarm import (
+    DEFAULT_SWARM_CONCURRENCY,
+    SwarmChildPlan,
+    SwarmQuestionResult,
+    SwarmRunResult,
+    build_swarm_plan,
+    run_swarm,
+    validate_swarm_concurrency,
+)
 from demo.services.audit import build_audit_event, render_timeline
 from demo.services.evidence_gateway import make_ai_safe_evidence, select_evidence
 from demo.services.ingest import build_questionnaire_received
@@ -72,6 +82,7 @@ class ScenarioRunContext:
     observer: RunObserver | None
     started_at: datetime
     telemetry: dict[str, int | float] = field(default_factory=dict)
+    metadata: dict[str, str | int | float | bool] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -395,6 +406,7 @@ def draft_answer_agentically_for_question(
         run_id=run_id,
         scenario_id=context.scenario_id if context else "happy-path",
         question_id=question_id,
+        metadata=context.metadata if context else None,
     ) as trace:
         result = run_agentic_draft(
             prepared,
@@ -679,6 +691,33 @@ def run_happy_path_until_evidence(
         ai_safe_evidence=ai_safe,
         audit_events=collect_audit_events(run),
     )
+
+
+def run_agent_swarm(
+    *,
+    swarm_id: str | None = None,
+    question_ids: Sequence[str] | None = None,
+    concurrency: int | None = None,
+    provider_factory: Callable[[], AgentProvider] | None = None,
+    pacing: Pacing | None = None,
+    question_runner: Callable[[SwarmChildPlan], SwarmQuestionResult] | None = None,
+) -> SwarmRunResult:
+    resolved_concurrency = validate_swarm_concurrency(concurrency)
+    plan = build_swarm_plan(swarm_id=swarm_id, question_ids=question_ids)
+    resolved_pacing = pacing or Pacing(name="realtime", delay_ms=0)
+    resolved_provider_factory = provider_factory or CodexCliClient
+
+    def worker(child: SwarmChildPlan) -> SwarmQuestionResult:
+        if question_runner is not None:
+            return question_runner(child)
+        return _run_agent_swarm_question(
+            child,
+            provider_factory=resolved_provider_factory,
+            pacing=resolved_pacing,
+            concurrency_limit=resolved_concurrency,
+        )
+
+    return run_swarm(plan, concurrency=resolved_concurrency, worker=worker)
 
 
 def run_prompt_injection(
@@ -1065,6 +1104,64 @@ def _prepare_question_path(
     prepared = next(item for item in prepared_questions if item.question_id == question_id)
     ai_safe = produce_ai_safe_evidence_for_question(run_id, question_id, context=context)
     return prepared, ai_safe
+
+
+def _run_agent_swarm_question(
+    child: SwarmChildPlan,
+    *,
+    provider_factory: Callable[[], AgentProvider],
+    pacing: Pacing,
+    concurrency_limit: int = DEFAULT_SWARM_CONCURRENCY,
+) -> SwarmQuestionResult:
+    started_at = datetime.now(UTC)
+    context = ScenarioRunContext(
+        run_id=child.run_id,
+        scenario_id="agent-swarm",
+        question_id=child.question_id,
+        pacing=pacing,
+        observer=None,
+        started_at=started_at,
+        metadata={
+            "swarm_id": child.swarm_id,
+            "child_run_id": child.run_id,
+            "question_id": child.question_id,
+            "concurrency_limit": concurrency_limit,
+        },
+    )
+    seed_evidence_events(child.run_id, context=context)
+    ingest_questionnaire_event(child.run_id, context=context)
+    prepared_questions = prepare_questions_for_run(child.run_id, context=context)
+    prepared = next(
+        item for item in prepared_questions if item.question_id == child.question_id
+    )
+    agent_result = draft_answer_agentically_for_question(
+        child.run_id,
+        child.question_id,
+        provider_factory(),
+        context=context,
+    )
+    guarded = guard_draft_for_question(child.run_id, child.question_id, context=context)
+    if isinstance(guarded, AcceptedDraft):
+        status = "accepted"
+        reason_codes: list[str] = []
+    else:
+        status = "rejected"
+        reason_codes = guarded.reason_codes
+    return SwarmQuestionResult(
+        swarm_id=child.swarm_id,
+        run_id=child.run_id,
+        question_id=child.question_id,
+        status=status,
+        reason_codes=reason_codes,
+        answer_type=agent_result.proposed_answer.answer_type.value,
+        tool_call_count=len(agent_result.tool_calls),
+        trace_url=agent_result.trace_url,
+        message=(
+            f"Guard accepted {prepared.question_id}."
+            if status == "accepted"
+            else f"Guard rejected {prepared.question_id}: {', '.join(reason_codes)}"
+        ),
+    )
 
 
 def _produce_attack_draft(

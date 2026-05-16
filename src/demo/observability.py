@@ -33,11 +33,19 @@ class NoopAgentTrace:
 
 
 class LangfuseAgentTrace:
-    def __init__(self, *, run_id: str, scenario_id: str, question_id: str | None) -> None:
+    def __init__(
+        self,
+        *,
+        run_id: str,
+        scenario_id: str,
+        question_id: str | None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
         self.enabled = True
         self.run_id = run_id
         self.scenario_id = scenario_id
         self.question_id = question_id
+        self.metadata = metadata or {}
         self.trace_url: str | None = None
         self._client = None
         self._root_cm = None
@@ -59,6 +67,7 @@ class LangfuseAgentTrace:
                     "scenario_id": self.scenario_id,
                     "question_id": self.question_id,
                 },
+                "metadata": self.metadata,
             }
             if trace_context:
                 kwargs["trace_context"] = trace_context
@@ -127,6 +136,7 @@ def make_agent_trace(
     run_id: str,
     scenario_id: str,
     question_id: str | None,
+    metadata: dict[str, Any] | None = None,
 ) -> NoopAgentTrace | LangfuseAgentTrace:
     if not _langfuse_configured():
         return NoopAgentTrace()
@@ -134,7 +144,12 @@ def make_agent_trace(
         import langfuse  # noqa: F401
     except ImportError:
         return NoopAgentTrace()
-    return LangfuseAgentTrace(run_id=run_id, scenario_id=scenario_id, question_id=question_id)
+    return LangfuseAgentTrace(
+        run_id=run_id,
+        scenario_id=scenario_id,
+        question_id=question_id,
+        metadata=metadata,
+    )
 
 
 def _langfuse_configured() -> bool:

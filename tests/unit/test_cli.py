@@ -1,6 +1,10 @@
+from datetime import UTC, datetime
+
 from typer.testing import CliRunner
 
+import demo.cli as cli_module
 from demo.cli import app
+from demo.services.agent_swarm import SwarmQuestionResult, SwarmRunResult
 
 
 runner = CliRunner()
@@ -32,3 +36,43 @@ def test_happy_path_command_documents_review_pause():
     assert result.exit_code == 0
     assert "--until" in result.output
     assert "review" in result.output
+
+
+def test_swarm_command_prints_grouped_summary(monkeypatch):
+    now = datetime.now(UTC)
+    swarm_result = SwarmRunResult(
+        swarm_id="swarm-demo",
+        concurrency=2,
+        questions=(
+            SwarmQuestionResult(
+                swarm_id="swarm-demo",
+                run_id="swarm-demo-Q-001",
+                question_id="Q-001",
+                status="accepted",
+                answer_type="yes_with_evidence",
+                tool_call_count=2,
+                trace_url="http://localhost:3000/project/demo/traces/q1",
+            ),
+            SwarmQuestionResult(
+                swarm_id="swarm-demo",
+                run_id="swarm-demo-Q-008",
+                question_id="Q-008",
+                status="rejected",
+                reason_codes=["RESTRICTED_EVIDENCE"],
+                answer_type="cannot_answer",
+                tool_call_count=2,
+            ),
+        ),
+        started_at=now,
+        ended_at=now,
+    )
+    monkeypatch.setattr(cli_module, "run_agent_swarm", lambda **_kwargs: swarm_result)
+
+    result = runner.invoke(app, ["run", "swarm", "--concurrency", "2"])
+
+    assert result.exit_code == 0
+    assert "Swarm: swarm-demo" in result.output
+    assert "Concurrency: 2" in result.output
+    assert "Q-001 accepted, 2 tool calls" in result.output
+    assert "Q-008 rejected, 2 tool calls, RESTRICTED_EVIDENCE" in result.output
+    assert "Langfuse: filter traces by swarm_id=swarm-demo" in result.output

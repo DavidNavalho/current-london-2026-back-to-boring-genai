@@ -76,6 +76,7 @@ make install
 .venv/bin/demo run happy-path --until review
 .venv/bin/demo review approve Q-001 --run-id <run_id>
 .venv/bin/demo export --run-id <run_id>
+.venv/bin/demo run swarm --concurrency 2
 .venv/bin/demo attack ai-direct-write --run-id rehearsal-attack
 .venv/bin/demo audit --run-id rehearsal-attack
 ```
@@ -92,9 +93,15 @@ Useful command-line fallback for a live demo:
 .venv/bin/demo run happy-path --until review
 .venv/bin/demo review approve Q-001 --run-id <run_id>
 .venv/bin/demo export --run-id <run_id>
+.venv/bin/demo run swarm --concurrency 2
 .venv/bin/demo attack ai-direct-write --run-id rehearsal-attack
 .venv/bin/demo audit --run-id rehearsal-attack
 ```
+
+The optional CLI swarm path launches bounded Codex drafter agents across all
+ten questions with child run IDs and concurrency capped at three. It stops at
+draft plus policy guard; it does not review or export swarm answers. Use
+Langfuse as the swarm view by filtering traces on the printed `swarm_id`.
 
 Developer validation scenarios still exist for regression testing, but they are
 not the presenter flow:
@@ -128,10 +135,13 @@ If port 8000 is already in use:
 ```
 
 The v3 presenter flow intentionally pauses after the policy guard accepts the
-draft. Use `Approve Draft` to emit the human review event, then `Export Response`
-to emit the final response-ready event. Use `Test AI Direct Write` to show
-Kafka denying `svc-ai-drafter` from writing directly to the export-ready topic.
-Use `Open AKHQ` from the UI to inspect the same Kafka topics under the hood.
+draft. Use `Run Useful Path` to drive the Q-001 pipeline; the API also starts a
+background swarm with separate child run IDs, but the dashboard stays focused on
+the single Q-001 flow. Use Langfuse as the swarm view. Use `Approve Draft` to
+emit the human review event, then `Export Response` to emit the final
+response-ready event. Use `Test AI Direct Write` to show Kafka denying
+`svc-ai-drafter` from writing directly to the export-ready topic. Use `Open
+AKHQ` from the UI to inspect the same Kafka topics under the hood.
 
 UI v2 API additions are available for a separate frontend harness: preallocate a
 run with `POST /demo/runs/allocate`, subscribe with
@@ -157,6 +167,8 @@ Key endpoints:
 - `POST /demo/run/happy-path?until=review`
 - `GET /demo/state/{run_id}`
 - `GET /demo/audit/{run_id}`
+- `POST /demo/swarm?concurrency=2`
+- `GET /demo/swarm/{swarm_id}`
 - `GET /demo/topics/{topic}/events`
 - `GET /demo/schemas/{subject}`
 - `GET /demo/authority-boundary`
@@ -191,6 +203,7 @@ Recommended rehearsal for the agent loop:
 .venv/bin/demo run happy-path --until review --run-id rehearsal-agent-1
 .venv/bin/demo run happy-path --until review --run-id rehearsal-agent-2
 .venv/bin/demo run happy-path --until review --run-id rehearsal-agent-3
+.venv/bin/demo run swarm --concurrency 2
 ```
 
 Each run should report `Agent tool calls: 2`, `Policy guard: accepted`, and
@@ -226,10 +239,12 @@ no-op and the demo behaves the same way.
 12. `.venv/bin/demo export --run-id <run_id>`
 13. `.venv/bin/demo attack ai-direct-write --run-id rehearsal-attack`
 14. `.venv/bin/demo audit --run-id rehearsal-attack`
-15. `make test-acl`
-16. `make serve-traced`
-17. Open `http://localhost:8000/v3`, run Useful Path, approve the draft,
-    export the response, and test AI Direct Write.
+15. `.venv/bin/demo run swarm --concurrency 2`
+16. `make test-acl`
+17. `make serve-traced`
+18. Open `http://localhost:8000/v3`, run Useful Path, approve the draft,
+    export the response, switch to Langfuse to show swarm traces, and test AI
+    Direct Write.
 
 ## Not Production
 

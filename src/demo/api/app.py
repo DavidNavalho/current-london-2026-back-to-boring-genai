@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Thread
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -15,12 +16,14 @@ from demo.api.pacing import Pacing, parse_pacing
 from demo.api.questionnaire_view import question_detail, questionnaire_overview
 from demo.api.run_store import allocate_run, get_run, list_runs, mark_completed, mark_started, reset_runs
 from demo.api.state import build_state_snapshot
+from demo.api.swarm_store import fail_swarm, get_swarm, reserve_swarm, reset_swarms, save_swarm
 from demo.config import Settings
 from demo.scenario_runner import (
     export_reviewed_response,
     render_audit_for_run,
     review_accepted_answer,
     run_ai_direct_write_attack,
+    run_agent_swarm,
     run_export_shortcut,
     run_hallucinated_evidence,
     run_happy_path,
@@ -32,6 +35,7 @@ from demo.scenario_runner import (
     run_unsupported_claim,
     ScenarioRunContext,
 )
+from demo.services.agent_swarm import build_swarm_plan, validate_swarm_concurrency
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -103,6 +107,8 @@ def run_scenario(
     until: str | None = None,
     run_id: str | None = None,
     pacing: str | None = None,
+    launch_swarm: bool = False,
+    swarm_concurrency: int | None = None,
 ) -> dict:
     resolved_pacing = _resolve_pacing(pacing)
     if scenario_id not in KNOWN_SCENARIOS:
@@ -147,6 +153,11 @@ def run_scenario(
                 }
             if until == "review":
                 result = run_happy_path_until_review(run_id, context=context)
+                swarm_id = (
+                    _launch_background_swarm(concurrency=swarm_concurrency)
+                    if launch_swarm
+                    else None
+                )
                 mark_completed(
                     result.run_id,
                     scenario_id=scenario_id,
@@ -169,9 +180,15 @@ def run_scenario(
                     "human_review_required": True,
                     "response_ready": False,
                     "question_id": result.question_id,
+                    "swarm_id": swarm_id,
                     "reason_codes": [],
                 }
             result = run_happy_path(run_id, context=context)
+            swarm_id = (
+                _launch_background_swarm(concurrency=swarm_concurrency)
+                if launch_swarm
+                else None
+            )
             mark_completed(
                 result.run_id,
                 scenario_id=scenario_id,
@@ -193,6 +210,7 @@ def run_scenario(
                 "status": "passed",
                 "human_review_required": False,
                 "response_ready": True,
+                "swarm_id": swarm_id,
                 "reason_codes": [],
             }
         runner = SCENARIO_RUNNERS[scenario_id]
@@ -245,7 +263,11 @@ def demo_runs() -> dict:
 
 @app.post("/demo/reset")
 def demo_reset() -> dict:
-    return {"cleared_runs": reset_runs(), "cleared_streams": reset_streams()}
+    return {
+        "cleared_runs": reset_runs(),
+        "cleared_streams": reset_streams(),
+        "cleared_swarms": reset_swarms(),
+    }
 
 
 @app.get("/demo/questionnaire")
@@ -273,6 +295,32 @@ def demo_audit(run_id: str) -> dict:
         "timeline": render_audit_for_run(run_id),
         "events": structured_audit_events(run_id),
     }
+
+
+@app.post("/demo/swarm")
+def demo_swarm(
+    swarm_id: str | None = None,
+    concurrency: int | None = None,
+    pacing: str | None = None,
+) -> dict:
+    resolved_pacing = _resolve_pacing(pacing)
+    try:
+        result = run_agent_swarm(
+            swarm_id=swarm_id,
+            concurrency=concurrency,
+            pacing=resolved_pacing,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return save_swarm(result)
+
+
+@app.get("/demo/swarm/{swarm_id}")
+def demo_swarm_summary(swarm_id: str) -> dict:
+    result = get_swarm(swarm_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Unknown swarm: {swarm_id}")
+    return result
 
 
 @app.get("/demo/stream/{run_id}")
@@ -439,6 +487,36 @@ def demo_attack_ai_direct_write(
         "duration_ms": result.duration_ms,
         "security_alert_event_id": result.security_alert_event_id,
     }
+
+
+def _launch_background_swarm(*, concurrency: int | None) -> str:
+    resolved_concurrency = validate_swarm_concurrency(concurrency)
+    plan = build_swarm_plan()
+    reserve_swarm(
+        plan.swarm_id,
+        concurrency=resolved_concurrency,
+        total_count=len(plan.children),
+    )
+    thread = Thread(
+        target=_run_background_swarm,
+        kwargs={"swarm_id": plan.swarm_id, "concurrency": resolved_concurrency},
+        daemon=True,
+    )
+    thread.start()
+    return plan.swarm_id
+
+
+def _run_background_swarm(*, swarm_id: str, concurrency: int) -> None:
+    try:
+        result = run_agent_swarm(
+            swarm_id=swarm_id,
+            concurrency=concurrency,
+            pacing=Pacing(name="realtime", delay_ms=0),
+        )
+    except Exception as exc:
+        fail_swarm(swarm_id, str(exc))
+        return
+    save_swarm(result)
 
 
 def _resolve_pacing(value: str | None) -> Pacing:

@@ -18,6 +18,7 @@ from demo.scenario_runner import (
     render_audit_for_run,
     review_accepted_answer,
     run_ai_direct_write_attack,
+    run_agent_swarm,
     run_happy_path,
     run_happy_path_until_review,
     run_export_shortcut,
@@ -225,6 +226,35 @@ def run_happy_path_command(
     typer.echo(f"Review: approved by {result.reviewed_answer.reviewer_id}")
     typer.echo("Export: questionnaire.response.ready.v1")
     typer.echo(f"Audit: {len(collect_audit_events(result.run_id))} events")
+
+
+@run_app.command("swarm")
+def run_swarm_command(
+    swarm_id: str | None = typer.Option(None, help="Swarm ID for Langfuse grouping"),
+    concurrency: int | None = typer.Option(None, help="Concurrent Codex agents. Default: 2, max: 3"),
+) -> None:
+    """Run the agent swarm across all questionnaire questions."""
+    try:
+        result = run_agent_swarm(swarm_id=swarm_id, concurrency=concurrency)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(f"Swarm: {result.swarm_id}")
+    typer.echo(f"Concurrency: {result.concurrency}")
+    typer.echo(
+        "Summary: "
+        f"{result.accepted_count} accepted, "
+        f"{result.rejected_count} rejected, "
+        f"{result.failed_count} failed"
+    )
+    for item in result.questions:
+        details = ", ".join(item.reason_codes)
+        suffix = f", {details}" if details else ""
+        typer.echo(
+            f"{item.question_id} {item.status}, "
+            f"{item.tool_call_count} tool calls"
+            f"{suffix}"
+        )
+    typer.echo(f"Langfuse: filter traces by swarm_id={result.swarm_id}")
 
 
 @run_app.command("prompt-injection")

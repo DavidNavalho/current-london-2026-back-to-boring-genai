@@ -777,6 +777,7 @@
           </select>
         </label>
         <a class="pill" href="http://localhost:8080" target="_blank" rel="noreferrer">Open AKHQ</a>
+        <a class="pill" href="http://localhost:3000" target="_blank" rel="noreferrer">Open Langfuse</a>
       </div>
     </header>
 
@@ -1206,7 +1207,7 @@
         setRun(allocation.run_id);
         openStream(allocation.run_id, token);
         setStatus('drafting');
-        const result = await api(`/demo/run/happy-path?run_id=${encodeURIComponent(allocation.run_id)}&pacing=${encodeURIComponent(dom.pacing.value)}&until=review`, { method: 'POST' });
+        const result = await api(`/demo/run/happy-path?run_id=${encodeURIComponent(allocation.run_id)}&pacing=${encodeURIComponent(dom.pacing.value)}&until=review&launch_swarm=true&swarm_concurrency=2`, { method: 'POST' });
         if (!isCurrentRun(allocation.run_id, token)) return;
         state.questionId = result.question_id || 'Q-001';
         await loadQuestion(state.questionId, token);
