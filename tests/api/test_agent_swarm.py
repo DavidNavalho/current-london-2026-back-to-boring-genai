@@ -73,17 +73,20 @@ def test_reserved_swarm_is_visible_while_background_work_runs():
 
 def test_happy_path_can_launch_background_swarm_without_waiting(monkeypatch):
     client.post("/demo/reset")
+    captured = {}
 
     monkeypatch.setattr(
         app_module,
         "run_happy_path_until_review",
         lambda run_id, context=None: SimpleNamespace(run_id=run_id, question_id="Q-001"),
     )
-    monkeypatch.setattr(
-        app_module,
-        "_launch_background_swarm",
-        lambda *, concurrency: "swarm-from-happy-path",
-    )
+
+    def fake_launch_background_swarm(*, concurrency, session_id):
+        captured["concurrency"] = concurrency
+        captured["session_id"] = session_id
+        return "swarm-from-happy-path"
+
+    monkeypatch.setattr(app_module, "_launch_background_swarm", fake_launch_background_swarm)
 
     response = client.post(
         "/demo/run/happy-path"
@@ -98,3 +101,5 @@ def test_happy_path_can_launch_background_swarm_without_waiting(monkeypatch):
     assert payload["run_id"] == "run-visible-q1"
     assert payload["question_id"] == "Q-001"
     assert payload["swarm_id"] == "swarm-from-happy-path"
+    assert captured["concurrency"] == 2
+    assert captured["session_id"] == "run-visible-q1"

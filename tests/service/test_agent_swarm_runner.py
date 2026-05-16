@@ -160,9 +160,11 @@ def test_swarm_child_context_carries_langfuse_grouping_metadata(monkeypatch):
         evidence_ids=["EVID-ENC-001"],
     )
     captured_metadata = {}
+    captured_session = {}
 
     def fake_draft(_run_id, _question_id, _provider, *, context=None):
         captured_metadata.update(context.metadata)
+        captured_session["session_id"] = context.session_id
         return AgentDraftRunResult(
             proposed_answer=proposed,
             ai_safe_evidence=[],
@@ -180,10 +182,12 @@ def test_swarm_child_context_carries_langfuse_grouping_metadata(monkeypatch):
         child,
         provider_factory=lambda: object(),
         pacing=Pacing(name="realtime", delay_ms=0),
+        session_id="run-visible-q1",
     )
 
+    assert captured_session["session_id"] == "run-visible-q1"
     assert captured_metadata["swarm_id"] == "swarm-demo"
+    assert captured_metadata["main_run_id"] == "run-visible-q1"
     assert captured_metadata["child_run_id"] == "swarm-demo-Q-001"
     assert captured_metadata["question_id"] == "Q-001"
     assert captured_metadata["concurrency_limit"] == 2
-

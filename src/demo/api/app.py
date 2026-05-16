@@ -154,7 +154,10 @@ def run_scenario(
             if until == "review":
                 result = run_happy_path_until_review(run_id, context=context)
                 swarm_id = (
-                    _launch_background_swarm(concurrency=swarm_concurrency)
+                    _launch_background_swarm(
+                        concurrency=swarm_concurrency,
+                        session_id=result.run_id,
+                    )
                     if launch_swarm
                     else None
                 )
@@ -185,7 +188,10 @@ def run_scenario(
                 }
             result = run_happy_path(run_id, context=context)
             swarm_id = (
-                _launch_background_swarm(concurrency=swarm_concurrency)
+                _launch_background_swarm(
+                    concurrency=swarm_concurrency,
+                    session_id=result.run_id,
+                )
                 if launch_swarm
                 else None
             )
@@ -489,7 +495,7 @@ def demo_attack_ai_direct_write(
     }
 
 
-def _launch_background_swarm(*, concurrency: int | None) -> str:
+def _launch_background_swarm(*, concurrency: int | None, session_id: str | None = None) -> str:
     resolved_concurrency = validate_swarm_concurrency(concurrency)
     plan = build_swarm_plan()
     reserve_swarm(
@@ -499,18 +505,23 @@ def _launch_background_swarm(*, concurrency: int | None) -> str:
     )
     thread = Thread(
         target=_run_background_swarm,
-        kwargs={"swarm_id": plan.swarm_id, "concurrency": resolved_concurrency},
+        kwargs={
+            "swarm_id": plan.swarm_id,
+            "concurrency": resolved_concurrency,
+            "session_id": session_id or plan.swarm_id,
+        },
         daemon=True,
     )
     thread.start()
     return plan.swarm_id
 
 
-def _run_background_swarm(*, swarm_id: str, concurrency: int) -> None:
+def _run_background_swarm(*, swarm_id: str, concurrency: int, session_id: str) -> None:
     try:
         result = run_agent_swarm(
             swarm_id=swarm_id,
             concurrency=concurrency,
+            session_id=session_id,
             pacing=Pacing(name="realtime", delay_ms=0),
         )
     except Exception as exc:
@@ -543,6 +554,7 @@ def _make_context(
         pacing=pacing,
         observer=None,
         started_at=started_at,
+        session_id=run_id,
     )
     context.observer = RunStreamObserver(context)
     return context

@@ -81,6 +81,7 @@ class ScenarioRunContext:
     pacing: Pacing
     observer: RunObserver | None
     started_at: datetime
+    session_id: str | None = None
     telemetry: dict[str, int | float] = field(default_factory=dict)
     metadata: dict[str, str | int | float | bool] = field(default_factory=dict)
 
@@ -406,6 +407,7 @@ def draft_answer_agentically_for_question(
         run_id=run_id,
         scenario_id=context.scenario_id if context else "happy-path",
         question_id=question_id,
+        session_id=context.session_id if context and context.session_id else run_id,
         metadata=context.metadata if context else None,
     ) as trace:
         result = run_agentic_draft(
@@ -698,12 +700,14 @@ def run_agent_swarm(
     swarm_id: str | None = None,
     question_ids: Sequence[str] | None = None,
     concurrency: int | None = None,
+    session_id: str | None = None,
     provider_factory: Callable[[], AgentProvider] | None = None,
     pacing: Pacing | None = None,
     question_runner: Callable[[SwarmChildPlan], SwarmQuestionResult] | None = None,
 ) -> SwarmRunResult:
     resolved_concurrency = validate_swarm_concurrency(concurrency)
     plan = build_swarm_plan(swarm_id=swarm_id, question_ids=question_ids)
+    resolved_session_id = session_id or plan.swarm_id
     resolved_pacing = pacing or Pacing(name="realtime", delay_ms=0)
     resolved_provider_factory = provider_factory or CodexCliClient
 
@@ -715,6 +719,7 @@ def run_agent_swarm(
             provider_factory=resolved_provider_factory,
             pacing=resolved_pacing,
             concurrency_limit=resolved_concurrency,
+            session_id=resolved_session_id,
         )
 
     return run_swarm(plan, concurrency=resolved_concurrency, worker=worker)
@@ -1112,8 +1117,18 @@ def _run_agent_swarm_question(
     provider_factory: Callable[[], AgentProvider],
     pacing: Pacing,
     concurrency_limit: int = DEFAULT_SWARM_CONCURRENCY,
+    session_id: str | None = None,
 ) -> SwarmQuestionResult:
     started_at = datetime.now(UTC)
+    resolved_session_id = session_id or child.swarm_id
+    metadata: dict[str, str | int | float | bool] = {
+        "swarm_id": child.swarm_id,
+        "child_run_id": child.run_id,
+        "question_id": child.question_id,
+        "concurrency_limit": concurrency_limit,
+    }
+    if resolved_session_id != child.swarm_id:
+        metadata["main_run_id"] = resolved_session_id
     context = ScenarioRunContext(
         run_id=child.run_id,
         scenario_id="agent-swarm",
@@ -1121,12 +1136,8 @@ def _run_agent_swarm_question(
         pacing=pacing,
         observer=None,
         started_at=started_at,
-        metadata={
-            "swarm_id": child.swarm_id,
-            "child_run_id": child.run_id,
-            "question_id": child.question_id,
-            "concurrency_limit": concurrency_limit,
-        },
+        session_id=resolved_session_id,
+        metadata=metadata,
     )
     seed_evidence_events(child.run_id, context=context)
     ingest_questionnaire_event(child.run_id, context=context)

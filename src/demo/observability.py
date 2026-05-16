@@ -39,21 +39,24 @@ class LangfuseAgentTrace:
         run_id: str,
         scenario_id: str,
         question_id: str | None,
+        session_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         self.enabled = True
         self.run_id = run_id
         self.scenario_id = scenario_id
         self.question_id = question_id
+        self.session_id = session_id
         self.metadata = metadata or {}
         self.trace_url: str | None = None
         self._client = None
+        self._attributes_cm = None
         self._root_cm = None
         self._root = None
 
     def __enter__(self):
         try:
-            from langfuse import get_client
+            from langfuse import get_client, propagate_attributes
 
             self._client = get_client()
             trace_context = {}
@@ -73,12 +76,16 @@ class LangfuseAgentTrace:
                 kwargs["trace_context"] = trace_context
             self._root_cm = self._client.start_as_current_observation(**kwargs)
             self._root = self._root_cm.__enter__()
+            if self.session_id:
+                self._attributes_cm = propagate_attributes(session_id=self.session_id)
+                self._attributes_cm.__enter__()
             self.trace_url = self._client.get_trace_url(
                 trace_id=self._client.get_current_trace_id()
             )
         except Exception:
             self.enabled = False
             self._client = None
+            self._attributes_cm = None
             self._root_cm = None
             self._root = None
             self.trace_url = None
@@ -86,6 +93,8 @@ class LangfuseAgentTrace:
 
     def __exit__(self, *exc_info) -> None:
         try:
+            if self._attributes_cm is not None:
+                self._attributes_cm.__exit__(*exc_info)
             if self._root_cm is not None:
                 self._root_cm.__exit__(*exc_info)
             if self._client is not None and hasattr(self._client, "flush"):
@@ -136,6 +145,7 @@ def make_agent_trace(
     run_id: str,
     scenario_id: str,
     question_id: str | None,
+    session_id: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> NoopAgentTrace | LangfuseAgentTrace:
     if not _langfuse_configured():
@@ -148,6 +158,7 @@ def make_agent_trace(
         run_id=run_id,
         scenario_id=scenario_id,
         question_id=question_id,
+        session_id=session_id,
         metadata=metadata,
     )
 

@@ -101,7 +101,7 @@ Useful command-line fallback for a live demo:
 The optional CLI swarm path launches bounded Codex drafter agents across all
 ten questions with child run IDs and concurrency capped at three. It stops at
 draft plus policy guard; it does not review or export swarm answers. Use
-Langfuse as the swarm view by filtering traces on the printed `swarm_id`.
+Langfuse as the swarm view with the printed `session_id` or `swarm_id`.
 
 Developer validation scenarios still exist for regression testing, but they are
 not the presenter flow:
@@ -137,11 +137,13 @@ If port 8000 is already in use:
 The v3 presenter flow intentionally pauses after the policy guard accepts the
 draft. Use `Run Useful Path` to drive the Q-001 pipeline; the API also starts a
 background swarm with separate child run IDs, but the dashboard stays focused on
-the single Q-001 flow. Use Langfuse as the swarm view. Use `Approve Draft` to
-emit the human review event, then `Export Response` to emit the final
-response-ready event. Use `Test AI Direct Write` to show Kafka denying
-`svc-ai-drafter` from writing directly to the export-ready topic. Use `Open
-AKHQ` from the UI to inspect the same Kafka topics under the hood.
+the single Q-001 flow. Use Langfuse as the swarm view; a `Run Useful Path` click
+uses the allocated run ID as the Langfuse session ID for both the visible Q-001
+trace and its background swarm traces. Use `Approve Draft` to emit the human
+review event, then `Export Response` to emit the final response-ready event. Use
+`Test AI Direct Write` to show Kafka denying `svc-ai-drafter` from writing
+directly to the export-ready topic. Use `Open AKHQ` from the UI to inspect the
+same Kafka topics under the hood.
 
 UI v2 API additions are available for a separate frontend harness: preallocate a
 run with `POST /demo/runs/allocate`, subscribe with

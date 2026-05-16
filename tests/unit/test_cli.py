@@ -75,4 +75,4 @@ def test_swarm_command_prints_grouped_summary(monkeypatch):
     assert "Concurrency: 2" in result.output
     assert "Q-001 accepted, 2 tool calls" in result.output
     assert "Q-008 rejected, 2 tool calls, RESTRICTED_EVIDENCE" in result.output
-    assert "Langfuse: filter traces by swarm_id=swarm-demo" in result.output
+    assert "Langfuse: session_id=swarm-demo; metadata swarm_id=swarm-demo" in result.output

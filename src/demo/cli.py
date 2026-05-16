@@ -254,7 +254,7 @@ def run_swarm_command(
             f"{item.tool_call_count} tool calls"
             f"{suffix}"
         )
-    typer.echo(f"Langfuse: filter traces by swarm_id={result.swarm_id}")
+    typer.echo(f"Langfuse: session_id={result.swarm_id}; metadata swarm_id={result.swarm_id}")
 
 
 @run_app.command("prompt-injection")
