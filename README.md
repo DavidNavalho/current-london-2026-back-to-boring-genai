@@ -15,6 +15,8 @@ before export, and Kafka ACLs prevent the AI drafter from bypassing review.
   mounts `${CODEX_HOME:-$HOME/.codex}` into the app container so the demo can
   reuse or create that login and persist Codex session metadata.
 
+No host Python, Node, Kafka, Schema Registry, or UI build tooling is required.
+
 ```bash
 docker compose build app
 docker compose run --rm --no-deps app codex login status
@@ -22,6 +24,27 @@ docker compose run --rm --no-deps app codex login status
 
 If the status command says you are not logged in, run
 `docker compose run --rm --no-deps app codex login`.
+
+## Quick Start
+
+```bash
+docker compose --profile observability up -d --build
+docker compose exec -T app python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/connection', timeout=15).read()"
+```
+
+Then open:
+
+- Demo UI: `http://localhost:8000/v3`
+- AKHQ: `http://localhost:8080`
+- Langfuse: `http://localhost:3000`
+
+If port 8000 is busy:
+
+```bash
+APP_PORT=8003 docker compose --profile observability up -d --build
+```
+
+Then open `http://localhost:8003/v3`.
 
 ## Start Runtime
 
@@ -68,6 +91,25 @@ docker compose exec -T app python -c "import urllib.request; urllib.request.urlo
 
 Use this reset after pulling schema-format changes; old local JSON-serialized
 messages are not migrated.
+
+## Containers
+
+| Service | Purpose | Host URL |
+| --- | --- | --- |
+| `app` | FastAPI API, static demo UIs, CLI entrypoint, tests, Codex CLI | `http://localhost:${APP_PORT:-8000}` |
+| `bootstrap` | One-shot topic, schema, and ACL setup | none |
+| `broker` | Confluent Kafka broker with ACLs | `localhost:9092` |
+| `schema-registry` | Confluent Schema Registry for Avro schemas | `http://localhost:8081` |
+| `akhq` | Kafka inspection console | `http://localhost:8080` |
+| `langfuse-web` | Local tracing UI | `http://localhost:3000` |
+| `langfuse-worker`, `langfuse-postgres`, `langfuse-clickhouse`, `langfuse-redis`, `langfuse-minio` | Local Langfuse dependencies | internal |
+
+The UI is not a separate frontend container. The `app` image copies `web/` into
+the container and FastAPI serves:
+
+- `/v3` current presenter UI
+- `/v2` fallback UI
+- `/` original fallback UI
 
 ## CLI Demo
 
@@ -117,8 +159,8 @@ docker compose run --rm --no-deps app demo run export-shortcut
 
 ## API and UI
 
-The API and UI are thin wrappers around the same scenario runner used by the
-CLI.
+The API and UI run inside the `app` container. They are thin wrappers around
+the same scenario runner used by the CLI.
 
 ```bash
 docker compose --profile observability up -d --build
