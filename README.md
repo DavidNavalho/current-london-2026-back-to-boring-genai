@@ -6,7 +6,10 @@ The demo shows a Kafka-governed questionnaire workflow where every meaningful
 transition goes through Kafka, every event is Avro-governed through Schema
 Registry, Codex investigates evidence through a bounded agent loop before
 drafting, a policy guard validates the draft, a human review event is required
-before export, and Kafka ACLs prevent the AI drafter from bypassing review.
+before export, and Kafka ACLs prevent the AI drafter from bypassing review. The
+presenter UI stays focused on one reliable Q-001 path, while a bounded
+background agent swarm runs across the wider questionnaire and is shown through
+Langfuse traces.
 
 ## Prerequisites
 
@@ -281,7 +284,20 @@ presenters open Langfuse through `http://localhost:3000`.
 
 This is a conference demo. It uses local demo credentials, local Docker,
 synthetic fixtures, simple prompts, a compact policy guard, and direct service
-principals for clarity. A production implementation would need managed secrets,
-network isolation, stronger identity, schema compatibility policy, retries,
-dead-letter handling, observability, prompt/version governance, more complete
-test data, load tests, failure recovery, and security review.
+principals for clarity. It also does not implement real RAG: there is no
+production document ingestion, indexing, vector search, retrieval evaluation,
+ranking, citation validation, or access-controlled evidence store. The evidence
+tools are deterministic demo tools over synthetic fixtures so the conference
+flow is reliable and inspectable.
+
+A production implementation would need additional work such as:
+
+- managed secrets and key rotation;
+- network isolation and hardened service identity;
+- Kafka schema compatibility policy and deployment gates;
+- retries, idempotency, dead-letter handling, and replay strategy;
+- production RAG ingestion, retrieval, evaluation, and citation controls;
+- prompt/version governance and model change management;
+- stronger policy enforcement and human-review authorization;
+- richer observability, alerting, and audit retention;
+- representative test data, load tests, failure recovery, and security review.
