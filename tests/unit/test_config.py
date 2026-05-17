@@ -1,7 +1,11 @@
 from demo.config import Settings
 
 
-def test_config_loads_defaults():
+def test_config_loads_defaults(monkeypatch):
+    monkeypatch.delenv("KAFKA_BOOTSTRAP_SERVERS", raising=False)
+    monkeypatch.delenv("SCHEMA_REGISTRY_URL", raising=False)
+    monkeypatch.delenv("CODEX_PROVIDER_MODE", raising=False)
+
     settings = Settings()
 
     assert settings.kafka_bootstrap_servers == "localhost:9092"
@@ -29,4 +33,3 @@ def test_safe_dump_redacts_secret_like_values(monkeypatch):
 
     assert dumped["codex_auth_token"] == "***"
     assert "secret-token" not in str(dumped)
-

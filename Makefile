@@ -4,8 +4,10 @@ PYTHON ?= $(VENV)/bin/python
 IMAGE ?= questionnaire-ai-demo:dev
 HOST ?= 0.0.0.0
 PORT ?= 8000
+COMPOSE ?= docker compose
+COMPOSE_PROFILE ?= --profile observability
 
-.PHONY: venv install install-observability image up down observability-up observability-health observability-stop runtime-health bootstrap-topics bootstrap-schemas bootstrap-acls serve serve-traced test-unit test-contract test-service test-integration test-scenario test-acl test-api test-ui
+.PHONY: venv install install-observability image up down ps logs runtime-health bootstrap bootstrap-topics bootstrap-schemas bootstrap-acls cli serve serve-traced test-unit test-contract test-service test-integration test-scenario test-acl test-api test-ui
 
 venv:
 	$(SYSTEM_PYTHON) -m venv $(VENV)
@@ -20,59 +22,62 @@ image:
 	docker build -t $(IMAGE) .
 
 up:
-	docker compose up -d
+	$(COMPOSE) $(COMPOSE_PROFILE) up -d --build
 
 down:
-	docker compose down -v
+	$(COMPOSE) $(COMPOSE_PROFILE) down -v
 
-observability-up:
-	docker compose --profile observability up -d langfuse-web langfuse-worker
+ps:
+	$(COMPOSE) $(COMPOSE_PROFILE) ps
 
-observability-health:
-	$(SYSTEM_PYTHON) scripts/wait_for_langfuse.py http://localhost:3000
-
-observability-stop:
-	docker compose --profile observability stop langfuse-web langfuse-worker langfuse-postgres langfuse-clickhouse langfuse-minio langfuse-redis
+logs:
+	$(COMPOSE) $(COMPOSE_PROFILE) logs -f app
 
 runtime-health:
-	$(SYSTEM_PYTHON) scripts/wait_for_kafka.py localhost 9092
-	$(SYSTEM_PYTHON) scripts/wait_for_schema_registry.py http://localhost:8081
+	$(COMPOSE) exec -T app python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5).read()"
+	$(COMPOSE) exec -T app python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/connection', timeout=15).read()"
 
-bootstrap-topics: install
-	$(PYTHON) scripts/bootstrap_topics.py
+bootstrap:
+	$(COMPOSE) run --rm bootstrap
 
-bootstrap-schemas: install
-	$(PYTHON) scripts/bootstrap_schemas.py
+bootstrap-topics:
+	$(COMPOSE) run --rm --no-deps app python scripts/bootstrap_topics.py
 
-bootstrap-acls: install
-	$(PYTHON) scripts/bootstrap_acls.py
+bootstrap-schemas:
+	$(COMPOSE) run --rm --no-deps app python scripts/bootstrap_schemas.py
 
-serve: install
-	$(PYTHON) -m uvicorn demo.api.app:app --host $(HOST) --port $(PORT)
+bootstrap-acls:
+	$(COMPOSE) run --rm --no-deps app python scripts/bootstrap_acls.py
 
-serve-traced: install-observability
-	LANGFUSE_BASE_URL=http://localhost:3000 LANGFUSE_PUBLIC_KEY=pk-lf-demo-local LANGFUSE_SECRET_KEY=sk-lf-demo-local $(PYTHON) -m uvicorn demo.api.app:app --host $(HOST) --port $(PORT)
+cli:
+	$(COMPOSE) run --rm --no-deps app demo --help
 
-test-unit: install
-	$(PYTHON) -m pytest tests/unit
+serve:
+	$(COMPOSE) up -d --build app
 
-test-contract: install
-	$(PYTHON) -m pytest tests/contract
+serve-traced:
+	$(COMPOSE) $(COMPOSE_PROFILE) up -d --build app langfuse-web langfuse-worker
 
-test-service: install
-	$(PYTHON) -m pytest tests/service
+test-unit:
+	$(COMPOSE) run --rm --no-deps app python -m pytest tests/unit
 
-test-integration: install
-	$(PYTHON) -m pytest tests/integration
+test-contract:
+	$(COMPOSE) run --rm --no-deps app python -m pytest tests/contract
 
-test-scenario: install
-	$(PYTHON) -m pytest tests/scenario
+test-service:
+	$(COMPOSE) run --rm --no-deps app python -m pytest tests/service
 
-test-acl: install
-	$(PYTHON) -m pytest tests/acl
+test-integration:
+	$(COMPOSE) run --rm --no-deps app python -m pytest tests/integration
 
-test-api: install
-	$(PYTHON) -m pytest tests/integration/test_api.py tests/api
+test-scenario:
+	$(COMPOSE) run --rm --no-deps app python -m pytest tests/scenario
 
-test-ui: install
-	$(PYTHON) -m pytest tests/ui
+test-acl:
+	$(COMPOSE) run --rm --no-deps app python -m pytest tests/acl
+
+test-api:
+	$(COMPOSE) run --rm --no-deps app python -m pytest tests/integration/test_api.py tests/api
+
+test-ui:
+	$(COMPOSE) run --rm --no-deps app python -m pytest tests/ui

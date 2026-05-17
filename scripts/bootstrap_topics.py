@@ -1,39 +1,31 @@
 from __future__ import annotations
 
-import subprocess
+from confluent_kafka import KafkaError, KafkaException
+from confluent_kafka.admin import AdminClient, NewTopic
 
 from demo.contracts import TOPICS
+from demo.kafka_io import kafka_client_config
 
 
 def main() -> int:
+    admin = AdminClient(kafka_client_config())
+    futures = admin.create_topics(
+        [
+            NewTopic(topic, num_partitions=1, replication_factor=1)
+            for topic in TOPICS
+        ],
+        operation_timeout=10,
+        request_timeout=15,
+    )
+
     for topic in TOPICS:
-        result = subprocess.run(
-            [
-                "docker",
-                "compose",
-                "exec",
-                "-T",
-                "broker",
-                "kafka-topics",
-                "--bootstrap-server",
-                "broker:29092",
-                "--create",
-                "--if-not-exists",
-                "--topic",
-                topic,
-                "--partitions",
-                "1",
-                "--replication-factor",
-                "1",
-            ],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            check=False,
-        )
-        if result.returncode != 0:
-            print(result.stdout)
-            return result.returncode
+        try:
+            futures[topic].result()
+        except KafkaException as exc:
+            error = exc.args[0]
+            if error.code() != KafkaError.TOPIC_ALREADY_EXISTS:
+                print(f"Topic bootstrap failed for {topic}: {error}")
+                return 1
         print(f"Topic ready: {topic}")
     return 0
 

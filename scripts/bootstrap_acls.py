@@ -1,6 +1,16 @@
 from __future__ import annotations
 
-import subprocess
+from confluent_kafka import KafkaError, KafkaException
+from confluent_kafka.admin import (
+    AclBinding,
+    AclOperation,
+    AclPermissionType,
+    AdminClient,
+    ResourcePatternType,
+    ResourceType,
+)
+
+from demo.kafka_io import kafka_client_config
 
 
 SERVICE_ACLS = {
@@ -45,75 +55,65 @@ SERVICE_ACLS = {
 
 
 def main() -> int:
+    admin = AdminClient(kafka_client_config())
+    acl_bindings: list[AclBinding] = []
     for principal, grants in SERVICE_ACLS.items():
         for topic in grants["read"]:
             for operation in ("Read", "Describe"):
-                code = _add_topic_acl(principal, operation, topic)
-                if code:
-                    return code
+                acl_bindings.append(_topic_acl(principal, operation, topic))
         for topic in grants["write"]:
             for operation in ("Write", "Describe"):
-                code = _add_topic_acl(principal, operation, topic)
-                if code:
-                    return code
+                acl_bindings.append(_topic_acl(principal, operation, topic))
         if grants["read"]:
-            code = _add_group_acl(principal)
-            if code:
-                return code
+            acl_bindings.append(_group_acl(principal))
+
+    acl_bindings = list(dict.fromkeys(acl_bindings))
+    futures = admin.create_acls(
+        acl_bindings,
+        request_timeout=15,
+    )
+    for acl, future in futures.items():
+        try:
+            future.result()
+        except KafkaException as exc:
+            error = exc.args[0]
+            if error.code() != KafkaError.DUPLICATE_RESOURCE:
+                print(f"ACL bootstrap failed for {acl}: {error}")
+                return 1
     print("ACLs ready")
     return 0
 
 
-def _add_topic_acl(principal: str, operation: str, topic: str) -> int:
-    return _run_acl(
-        [
-            "--add",
-            "--allow-principal",
-            f"User:{principal}",
-            "--operation",
-            operation,
-            "--topic",
-            topic,
-        ]
+def _topic_acl(principal: str, operation: str, topic: str) -> AclBinding:
+    return AclBinding(
+        ResourceType.TOPIC,
+        topic,
+        ResourcePatternType.LITERAL,
+        f"User:{principal}",
+        "*",
+        _operation(operation),
+        AclPermissionType.ALLOW,
     )
 
 
-def _add_group_acl(principal: str) -> int:
-    return _run_acl(
-        [
-            "--add",
-            "--allow-principal",
-            f"User:{principal}",
-            "--operation",
-            "Read",
-            "--group",
-            "*",
-        ]
+def _group_acl(principal: str) -> AclBinding:
+    return AclBinding(
+        ResourceType.GROUP,
+        "*",
+        ResourcePatternType.LITERAL,
+        f"User:{principal}",
+        "*",
+        AclOperation.READ,
+        AclPermissionType.ALLOW,
     )
 
 
-def _run_acl(args: list[str]) -> int:
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "exec",
-            "-T",
-            "broker",
-            "kafka-acls",
-            "--bootstrap-server",
-            "broker:29092",
-            *args,
-        ],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
-    )
-    if result.returncode != 0:
-        print(result.stdout)
-        return result.returncode
-    return 0
+def _operation(operation: str) -> AclOperation:
+    return {
+        "Read": AclOperation.READ,
+        "Write": AclOperation.WRITE,
+        "Describe": AclOperation.DESCRIBE,
+    }[operation]
 
 
 if __name__ == "__main__":

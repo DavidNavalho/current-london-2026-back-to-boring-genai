@@ -1,3 +1,17 @@
+name: questionnaire-ai-demo
+
+x-app-environment: &app-environment
+  KAFKA_BOOTSTRAP_SERVERS: broker:29094
+  SCHEMA_REGISTRY_URL: http://schema-registry:8081
+  KAFKA_SECURITY_PROTOCOL: SASL_PLAINTEXT
+  KAFKA_SASL_MECHANISM: PLAIN
+  KAFKA_PRINCIPAL: svc-admin
+  CODEX_PROVIDER_MODE: cli
+  CODEX_HOME: /root/.codex
+  LANGFUSE_BASE_URL: http://langfuse-web:3000
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-demo-local}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-demo-local}
+
 services:
   broker:
     image: confluentinc/cp-kafka:${CONFLUENT_PLATFORM_VERSION:-8.2.0}
@@ -11,14 +25,27 @@ services:
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:29093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENERS: PLAINTEXT://broker:29092,CONTROLLER://broker:29093,SASL_PLAINTEXT_HOST://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,SASL_PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT_HOST:SASL_PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://broker:29092,CONTROLLER://broker:29093,SASL_PLAINTEXT_HOST://0.0.0.0:9092,SASL_PLAINTEXT://broker:29094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,SASL_PLAINTEXT_HOST://localhost:9092,SASL_PLAINTEXT://broker:29094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,SASL_PLAINTEXT_HOST:SASL_PLAINTEXT,SASL_PLAINTEXT:SASL_PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_SASL_ENABLED_MECHANISMS: PLAIN
       KAFKA_OPTS: ""
       KAFKA_LISTENER_NAME_SASL__PLAINTEXT__HOST_SASL_ENABLED_MECHANISMS: PLAIN
       KAFKA_LISTENER_NAME_SASL__PLAINTEXT__HOST_PLAIN_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.plain.PlainLoginModule required
+        username="svc-admin"
+        password="svc-admin-secret"
+        user_svc-admin="svc-admin-secret"
+        user_svc-ingest="svc-ingest-secret"
+        user_svc-preparer="svc-preparer-secret"
+        user_svc-evidence-gateway="svc-evidence-gateway-secret"
+        user_svc-ai-drafter="svc-ai-drafter-secret"
+        user_svc-policy-guard="svc-policy-guard-secret"
+        user_svc-review-export="svc-review-export-secret"
+        user_svc-audit-viewer="svc-audit-viewer-secret";
+      KAFKA_LISTENER_NAME_SASL__PLAINTEXT_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_LISTENER_NAME_SASL__PLAINTEXT_PLAIN_SASL_JAAS_CONFIG: >-
         org.apache.kafka.common.security.plain.PlainLoginModule required
         username="svc-admin"
         password="svc-admin-secret"
@@ -82,6 +109,48 @@ services:
                 bootstrap.servers: "broker:29092"
               schema-registry:
                 url: "http://schema-registry:8081"
+
+  bootstrap:
+    build:
+      context: .
+      args:
+        CODEX_CLI_VERSION: ${CODEX_CLI_VERSION:-0.130.0}
+    image: questionnaire-ai-demo-app:${DEMO_IMAGE_TAG:-local}
+    container_name: questionnaire-ai-demo-bootstrap
+    depends_on:
+      broker:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+    environment:
+      <<: *app-environment
+    command: >
+      sh -c "python scripts/bootstrap_topics.py &&
+             python scripts/bootstrap_schemas.py &&
+             python scripts/bootstrap_acls.py"
+
+  app:
+    build:
+      context: .
+      args:
+        CODEX_CLI_VERSION: ${CODEX_CLI_VERSION:-0.130.0}
+    image: questionnaire-ai-demo-app:${DEMO_IMAGE_TAG:-local}
+    container_name: questionnaire-ai-demo-app
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      <<: *app-environment
+    volumes:
+      - ${CODEX_HOME:-${HOME}/.codex}:/root/.codex
+    command: ["python", "-m", "uvicorn", "demo.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3).read()\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   langfuse-worker:
     image: docker.io/langfuse/langfuse-worker:${LANGFUSE_VERSION:-3}
